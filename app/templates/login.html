@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ingreso</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="shell auth-shell">
+      <section class="auth-card">
+        <h1>Iniciar sesion</h1>
+        <p>Ingresa con tu usuario y clave para continuar.</p>
+        <form class="auth-form" method="post" action="/login">
+          <label>
+            Usuario
+            <input name="username" autocomplete="username" required />
+          </label>
+          <label>
+            Clave
+            <div class="password-field">
+              <input
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                aria-label="Mostrar clave"
+                data-password-toggle
+              >
+                <span class="password-toggle-icon" aria-hidden="true"></span>
+              </button>
+            </div>
+          </label>
+          <button class="primary" type="submit">Entrar</button>
+        </form>
+        {% if error %}
+        <div class="auth-error">{{ error }}</div>
+        {% endif %}
+      </section>
+    </main>
+    <script>
+      const TAB_KEY = "tab_id";
+      const ensureTabId = () => {
+        let tabId = sessionStorage.getItem(TAB_KEY);
+        if (!tabId) {
+          tabId =
+            (window.crypto && crypto.randomUUID && crypto.randomUUID()) ||
+            `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          sessionStorage.setItem(TAB_KEY, tabId);
+        }
+        return tabId;
+      };
+
+      const tabId = ensureTabId();
+
+      document.querySelectorAll("form").forEach((form) => {
+        if (form.querySelector("input[name='tab_id']")) {
+          return;
+        }
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = "tab_id";
+        hidden.value = tabId;
+        form.appendChild(hidden);
+      });
+
+      document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+        const field = button.closest(".password-field");
+        const input = field ? field.querySelector("input") : null;
+        if (!input) {
+          return;
+        }
+
+        button.addEventListener("click", () => {
+          const showPassword = input.type === "password";
+          input.type = showPassword ? "text" : "password";
+          button.classList.toggle("is-visible", showPassword);
+          button.setAttribute(
+            "aria-label",
+            showPassword ? "Ocultar clave" : "Mostrar clave",
+          );
+        });
+      });
+    </script>
+  </body>
+</html>

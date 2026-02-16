@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Panel de Administracion</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-current-user-id="{{ user.id }}">
+    <main class="shell">
+      <header class="hero admin-hero">
+        <div>
+          <h1>Panel de Administracion</h1>
+          <p>Gestion de roles y usuarios.</p>
+        </div>
+        <div class="hero-actions">
+          <span class="user-chip">{{ user.username }} ({{ user.role }})</span>
+          <a class="secondary" href="/">Volver</a>
+          <a class="secondary" href="/logout">Salir</a>
+        </div>
+      </header>
+
+      <section class="admin-section">
+        {% if message %}
+        <div class="auth-success">{{ message }}</div>
+        {% endif %} {% if error %}
+        <div class="auth-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="admin-layout">
+          <aside class="admin-tabs">
+            <button class="admin-tab active" data-tab="roles">Crear rol</button>
+            <button class="admin-tab" data-tab="crear-usuario">
+              Crear usuario
+            </button>
+            <button class="admin-tab" data-tab="usuarios">Usuarios</button>
+          </aside>
+
+          <div class="admin-panels">
+            <div class="admin-panel active" id="roles">
+              <div class="admin-card">
+                <h2>Crear rol</h2>
+                <form method="post" action="/admin/roles" class="admin-form">
+                  <label>
+                    Nombre del rol
+                    <input name="role_name" required />
+                  </label>
+                  <button class="primary" type="submit">Crear rol</button>
+                </form>
+                <div class="admin-list">
+                  <strong>Roles actuales</strong>
+                  <div class="admin-table">
+                    <div class="admin-row admin-header admin-roles-row">
+                      <span>Rol</span>
+                      <span>Acciones</span>
+                    </div>
+                    {% for role in roles %}
+                    <div class="admin-row admin-roles-row">
+                      <span>{{ role.name }}</span>
+                      <div class="admin-actions">
+                        <form
+                          method="post"
+                          action="/admin/roles/{{ role.id }}"
+                          class="admin-inline"
+                        >
+                          <input
+                            name="role_name"
+                            value="{{ role.name }}"
+                            required
+                          />
+                          <button class="secondary" type="submit">
+                            Guardar
+                          </button>
+                        </form>
+                        <form
+                          method="post"
+                          action="/admin/roles/{{ role.id }}/delete"
+                          data-confirm="Eliminar este rol? Los usuarios quedaran en por_asignar."
+                        >
+                          <button class="danger" type="submit">Eliminar</button>
+                        </form>
+                      </div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="admin-panel" id="crear-usuario">
+              <div class="admin-card">
+                <h2>Crear usuario</h2>
+                <form method="post" action="/admin/users" class="admin-form">
+                  <label>
+                    Usuario
+                    <input name="username" required />
+                  </label>
+                  <label>
+                    Nombres
+                    <input name="first_name" required />
+                  </label>
+                  <label>
+                    Apellidos
+                    <input name="last_name" required />
+                  </label>
+                  <label>
+                    Tipo de documento
+                    <select name="doc_type" required>
+                      <option value="">Selecciona</option>
+                      {% for doc in doc_types %}
+                      <option value="{{ doc.value }}">{{ doc.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <label>
+                    Numero de documento
+                    <input name="doc_number" required />
+                  </label>
+                  <label>
+                    Clave
+                    <div class="password-field">
+                      <input name="password" type="password" required />
+                      <button
+                        class="password-toggle"
+                        type="button"
+                        aria-label="Mostrar clave"
+                        data-password-toggle
+                      >
+                        <span
+                          class="password-toggle-icon"
+                          aria-hidden="true"
+                        ></span>
+                      </button>
+                    </div>
+                  </label>
+                  <label>
+                    Rol
+                    <select name="role_id" required>
+                      <option value="">Selecciona</option>
+                      {% for role in roles %}
+                      <option value="{{ role.id }}">{{ role.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <button class="primary" type="submit">Crear usuario</button>
+                </form>
+              </div>
+            </div>
+
+            <div class="admin-panel" id="usuarios">
+              <div class="admin-card">
+                <h2>Usuarios</h2>
+                <div class="admin-table">
+                  <div class="admin-row admin-header">
+                    <span>Usuario</span>
+                    <span>Nombre</span>
+                    <span>Documento</span>
+                    <span>Rol</span>
+                    <span>Acciones</span>
+                  </div>
+                  {% for item in users %}
+                  <div class="admin-row">
+                    <span>{{ item.username }}</span>
+                    <span>{{ item.first_name }} {{ item.last_name }}</span>
+                    <span>{{ item.doc_type }} {{ item.doc_number }}</span>
+                    <span>{{ item.role }}</span>
+                    <div class="admin-actions">
+                      <button
+                        type="button"
+                        class="secondary edit-user-btn"
+                        data-user-id="{{ item.id }}"
+                        data-username="{{ item.username }}"
+                        data-first-name="{{ item.first_name }}"
+                        data-last-name="{{ item.last_name }}"
+                        data-doc-type="{{ item.doc_type }}"
+                        data-doc-number="{{ item.doc_number }}"
+                        data-role-id="{{ item.role_id }}"
+                      >
+                        Editar
+                      </button>
+                      <form
+                        method="post"
+                        action="/admin/users/{{ item.id }}/delete"
+                        data-confirm="Eliminar este usuario?"
+                        data-user-id="{{ item.id }}"
+                      >
+                        <button class="danger" type="submit">Eliminar</button>
+                      </form>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal" id="userModal" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h3>Editar usuario</h3>
+        <form method="post" id="userEditForm" class="admin-form">
+          <div class="modal-error" id="userModalError"></div>
+          <label>
+            Usuario
+            <input name="username" id="editUsername" required />
+          </label>
+          <label>
+            Nombres
+            <input name="first_name" id="editFirstName" required />
+          </label>
+          <label>
+            Apellidos
+            <input name="last_name" id="editLastName" required />
+          </label>
+          <label>
+            Tipo de documento
+            <select name="doc_type" id="editDocType" required>
+              <option value="">Selecciona</option>
+              {% for doc in doc_types %}
+              <option value="{{ doc.value }}">{{ doc.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Numero de documento
+            <input name="doc_number" id="editDocNumber" required />
+          </label>
+          <label>
+            Nueva clave (opcional)
+            <div class="password-field">
+              <input name="password" type="password" id="editPassword" />
+              <button
+                class="password-toggle"
+                type="button"
+                aria-label="Mostrar clave"
+                data-password-toggle
+              >
+                <span class="password-toggle-icon" aria-hidden="true"></span>
+              </button>
+            </div>
+          </label>
+          <label>
+            Rol
+            <select name="role_id" id="editRoleId" required>
+              <option value="">Selecciona</option>
+              {% for role in roles %}
+              <option value="{{ role.id }}">{{ role.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <div class="modal-actions">
+            <button type="button" class="secondary" id="closeUserModal">
+              Cancelar
+            </button>
+            <button class="primary" type="submit">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const TAB_KEY = "tab_id";
+      const ensureTabId = () => {
+        let tabId = sessionStorage.getItem(TAB_KEY);
+        if (!tabId) {
+          tabId =
+            (window.crypto && crypto.randomUUID && crypto.randomUUID()) ||
+            `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          sessionStorage.setItem(TAB_KEY, tabId);
+        }
+        return tabId;
+      };
+
+      const tabId = ensureTabId();
+
+      document.querySelectorAll("a[href^='/']").forEach((link) => {
+        const rawHref = link.getAttribute("href");
+        if (!rawHref) {
+          return;
+        }
+        const url = new URL(rawHref, window.location.origin);
+        url.searchParams.set("tab_id", tabId);
+        link.setAttribute("href", url.toString());
+      });
+
+      document.querySelectorAll("form").forEach((form) => {
+        if (form.querySelector("input[name='tab_id']")) {
+          return;
+        }
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = "tab_id";
+        hidden.value = tabId;
+        form.appendChild(hidden);
+      });
+
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input, init = {}) => {
+        const headers = new Headers(init.headers || {});
+        headers.set("X-Tab-Id", tabId);
+        return originalFetch(input, { ...init, headers });
+      };
+
+      const adminTabs = document.querySelectorAll(".admin-tab");
+      const adminPanels = document.querySelectorAll(".admin-panel");
+
+      const activateAdminTab = (tabId) => {
+        adminTabs.forEach((tab) => tab.classList.remove("active"));
+        adminPanels.forEach((panel) => panel.classList.remove("active"));
+        const tab = document.querySelector(`.admin-tab[data-tab='${tabId}']`);
+        const panel = document.getElementById(tabId);
+        if (tab) {
+          tab.classList.add("active");
+        }
+        if (panel) {
+          panel.classList.add("active");
+        }
+      };
+
+      adminTabs.forEach((tab) => {
+        tab.addEventListener("click", () => activateAdminTab(tab.dataset.tab));
+      });
+
+      const userModal = document.getElementById("userModal");
+      const userEditForm = document.getElementById("userEditForm");
+      const closeUserModal = document.getElementById("closeUserModal");
+      const editUsername = document.getElementById("editUsername");
+      const editFirstName = document.getElementById("editFirstName");
+      const editLastName = document.getElementById("editLastName");
+      const editDocType = document.getElementById("editDocType");
+      const editDocNumber = document.getElementById("editDocNumber");
+      const editPassword = document.getElementById("editPassword");
+      const editRoleId = document.getElementById("editRoleId");
+      const userModalError = document.getElementById("userModalError");
+
+      const openUserModal = () => {
+        userModal.classList.add("is-open");
+        userModal.setAttribute("aria-hidden", "false");
+        userModalError.textContent = "";
+        userModalError.classList.remove("is-visible");
+      };
+
+      const closeModal = () => {
+        userModal.classList.remove("is-open");
+        userModal.setAttribute("aria-hidden", "true");
+        editPassword.value = "";
+        userModalError.textContent = "";
+        userModalError.classList.remove("is-visible");
+      };
+
+      document.querySelectorAll(".edit-user-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          const userId = button.dataset.userId;
+          editUsername.value = button.dataset.username || "";
+          editFirstName.value = button.dataset.firstName || "";
+          editLastName.value = button.dataset.lastName || "";
+          editDocType.value = button.dataset.docType || "";
+          editDocNumber.value = button.dataset.docNumber || "";
+          editRoleId.value = button.dataset.roleId || "";
+          userEditForm.action = `/admin/users/${userId}`;
+          openUserModal();
+        });
+      });
+
+      closeUserModal.addEventListener("click", closeModal);
+      userModal.addEventListener("click", (event) => {
+        if (event.target === userModal) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && userModal.classList.contains("is-open")) {
+          closeModal();
+        }
+      });
+
+      document.querySelectorAll("form[data-confirm]").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+          const message = form.dataset.confirm || "Confirmar eliminacion?";
+          const currentUserId = document.body.dataset.currentUserId;
+          const targetUserId = form.dataset.userId;
+          if (currentUserId && targetUserId && currentUserId === targetUserId) {
+            event.preventDefault();
+            window.alert("No puedes eliminar tu propio usuario.");
+            return;
+          }
+          if (!window.confirm(message)) {
+            event.preventDefault();
+          }
+        });
+      });
+
+      userEditForm.addEventListener("submit", (event) => {
+        const requiredFields = [
+          editUsername,
+          editFirstName,
+          editLastName,
+          editDocType,
+          editDocNumber,
+          editRoleId,
+        ];
+        const hasMissing = requiredFields.some((field) => !field.value.trim());
+        if (hasMissing) {
+          event.preventDefault();
+          userModalError.textContent =
+            "Completa todos los campos obligatorios.";
+          userModalError.classList.add("is-visible");
+        }
+      });
+
+      document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+        const field = button.closest(".password-field");
+        const input = field ? field.querySelector("input") : null;
+        if (!input) {
+          return;
+        }
+
+        button.addEventListener("click", () => {
+          const showPassword = input.type === "password";
+          input.type = showPassword ? "text" : "password";
+          button.classList.toggle("is-visible", showPassword);
+          button.setAttribute(
+            "aria-label",
+            showPassword ? "Ocultar clave" : "Mostrar clave",
+          );
+        });
+      });
+    </script>
+  </body>
+</html>

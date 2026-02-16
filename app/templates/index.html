@@ -1,0 +1,2184 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Generador de Informes</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body data-user-role="{{ user.role if user else '' }}">
+    <main class="shell">
+      <header class="hero admin-hero">
+        <button
+          type="button"
+          class="theme-toggle"
+          id="themeToggle"
+          aria-label="Cambiar tema"
+          aria-pressed="false"
+          title="Cambiar tema"
+        >
+          <span class="theme-icon" aria-hidden="true"></span>
+        </button>
+        <div>
+          <h1>Generador de Informes</h1>
+          <p>
+            Completa los campos y genera los tres documentos con un solo clic.
+          </p>
+        </div>
+        <div class="hero-actions">
+          {% if user and user.role == "super_admin" %}
+          <a class="secondary" href="/admin">Admin</a>
+          {% endif %} {% if user %}
+          <span class="user-chip">{{ user.username }} ({{ user.role }})</span>
+          <a class="secondary" href="/logout">Salir</a>
+          {% endif %}
+        </div>
+      </header>
+
+      {# Supervisor Review Section #} {% if user and user.role == "supervisor"
+      %}
+      <section class="supervisor-review">
+        <h2>Revisión de Informes</h2>
+        <div class="supervisor-informes-list">
+          <div id="supervisor-review-section" style="display: none">
+            <h2>Revisión de Informes</h2>
+            <div class="supervisor-table-container">
+              <div class="supervisor-filters">
+                <input
+                  type="text"
+                  id="filter-contractor"
+                  placeholder="Filtrar por contratista"
+                />
+                <input type="month" id="filter-period" />
+                <select id="filter-status">
+                  <option value="">Todos los estados</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="aprobado">Aprobado</option>
+                  <option value="rechazado">Rechazado</option>
+                </select>
+                <button id="btn-filter-reports">Filtrar</button>
+              </div>
+              <table id="supervisor-reports-table">
+                <thead>
+                  <tr>
+                    <th>Contratista</th>
+                    <th>Periodo</th>
+                    <th>Estado</th>
+                    <th>Descargar</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- JS: Llenar con informes -->
+                </tbody>
+              </table>
+            </div>
+            <div id="supervisor-review-panel" style="display: none">
+              <h3>Detalle del Informe</h3>
+              <div id="supervisor-activities-list">
+                <!-- JS: Llenar con actividades -->
+              </div>
+              <div class="supervisor-global-controls">
+                <label for="supervisor-global-observation"
+                  >Observación global:</label
+                >
+                <textarea
+                  id="supervisor-global-observation"
+                  rows="2"
+                ></textarea>
+                <div class="supervisor-global-actions">
+                  <button id="supervisor-approve-report">
+                    Aprobar informe
+                  </button>
+                  <button id="supervisor-reject-report">
+                    Rechazar informe
+                  </button>
+                  <button id="supervisor-save-draft">
+                    Guardar revisión parcial
+                  </button>
+                </div>
+              </div>
+              <div id="supervisor-review-history">
+                <h4>Historial de revisiones</h4>
+                <ul id="supervisor-history-list">
+                  <!-- JS: Llenar con historial -->
+                </ul>
+              </div>
+              <div id="supervisor-notification" style="display: none">
+                <span>Notificación enviada al contratista.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          id="supervisorPanel"
+          class="supervisor-panel"
+          style="display: none"
+        >
+          <h3>Revisión de Actividades y Evidencias</h3>
+          <div id="supervisorPanelContent">
+            <!-- Aquí se cargará dinámicamente el contenido del informe seleccionado -->
+          </div>
+          <div class="supervisor-panel-actions">
+            <button type="button" class="primary" id="aprobarInformeBtn">
+              Aprobar informe
+            </button>
+            <button type="button" class="danger" id="rechazarInformeBtn">
+              Rechazar informe
+            </button>
+            <textarea
+              id="observacionesSupervisor"
+              placeholder="Observaciones generales (opcional)"
+            ></textarea>
+            <button
+              type="button"
+              class="secondary"
+              onclick="closeSupervisorPanel()"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </section>
+      <hr />
+      {% endif %}
+
+      <section class="tabs">
+        <nav class="tablist">
+          <button class="tab active" data-tab="t1">1. Datos Generales</button>
+          <button class="tab" data-tab="t2">2. Obligaciones Directas</button>
+          <button class="tab" data-tab="t4">3. Seguridad Social</button>
+          <button class="tab" data-tab="t5">4. Informacion Financiera</button>
+        </nav>
+
+        <form id="form" class="tabpanels">
+          <div class="panel active" id="t1">
+            <div class="grid">
+              <label
+                >Numero de informe<input name="informe_no" required
+              /></label>
+              <label>Contrato No<input name="contrato_no" required /></label>
+              <label>
+                Fecha contrato<input
+                  name="fecha_contrato"
+                  type="date"
+                  required
+                />
+              </label>
+              <label
+                >Objeto contractual<textarea
+                  name="objeto_contractual"
+                  required
+                ></textarea>
+              </label>
+              <label
+                >Entidad contratante<input name="entidad_contratante" required
+              /></label>
+              <label>NIT<input name="nit" required /></label>
+              <label>Contratista<input name="contratista" required /></label>
+              <label>
+                Supervisor
+                <select name="supervisor" required>
+                  <option value="">Selecciona</option>
+                  {% for sup in supervisors %}
+                  <option value="{{ sup.first_name }} {{ sup.last_name }}">
+                    {{ sup.first_name }} {{ sup.last_name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>CC<input name="cc" required /></label>
+              <label
+                >Ciudad de expedicion<input name="ciudad_expedicion" required
+              /></label>
+              <div class="plazo-group">
+                <div class="group-title">Plazo inicial</div>
+                <div class="plazo-grid">
+                  <label>
+                    Plazo (año)
+                    <select name="plazo_anio" required>
+                      <option value="">Año</option>
+                    </select>
+                  </label>
+                  <label>
+                    Plazo (mes)
+                    <select name="plazo_mes" required>
+                      <option value="">Mes</option>
+                    </select>
+                  </label>
+                  <label>
+                    Plazo (dia)
+                    <select name="plazo_dia" required>
+                      <option value="">Dia</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <label>
+                Fecha inicio contrato<input
+                  name="fecha_inicio_contrato"
+                  type="date"
+                  required
+              /></label>
+              <label>
+                Fecha vencimiento contrato<input
+                  name="fecha_vencimiento_contrato"
+                  type="date"
+                  required
+              /></label>
+              <label
+                >Valor inicial<input
+                  name="valor_inicial"
+                  required
+                  class="money"
+              /></label>
+              <label>CDP<input name="cdp" required /></label>
+              <label>RP<input name="rp" required /></label>
+              <div class="plazo-group">
+                <div class="group-title">Periodo informado</div>
+                <div class="plazo-grid">
+                  <label>
+                    Periodo informado (de)<input
+                      name="periodo_i_de"
+                      type="date"
+                      required
+                  /></label>
+                  <label>
+                    Periodo informado (a)<input
+                      name="periodo_i_a"
+                      type="date"
+                      required
+                  /></label>
+                </div>
+              </div>
+              <label
+                >Fecha expedicion informe (año)
+                <select name="fecha_expedicion_informe_año" required>
+                  <option value="">Año</option>
+                </select>
+              </label>
+              <label
+                >Fecha expedicion informe (mes)
+                <select name="fecha_expedicion_informe_mes" required>
+                  <option value="">Mes</option>
+                </select>
+              </label>
+              <label
+                >Fecha expedicion informe (dia)
+                <select name="fecha_expedicion_informe_dia" required>
+                  <option value="">Dia</option>
+                </select>
+              </label>
+              <label
+                >Fecha presentacion informe<input
+                  name="fecha_presentacion_informe"
+                  type="date"
+                  required
+              /></label>
+            </div>
+          </div>
+
+          <div class="panel" id="t2">
+            <section class="activity-section directa" id="directas">
+              {% if user and user.role == "contratista" %}
+              <div class="info-note">
+                En el campo Actividades ejecutadas, redacta en primera persona.
+              </div>
+              {% endif %}
+              <div class="activity-header">
+                <span>Actividades del contrato</span>
+                <span>Actividades ejecutadas</span>
+                <span>Aporta evidencias?</span>
+              </div>
+              <div class="activity-rows" id="directasRows">
+                <div class="activity-row">
+                  <textarea
+                    name="obligaciones_directas_item"
+                    required
+                  ></textarea>
+                  <textarea
+                    name="obligaciones_directas_ejecutadas_item"
+                    required
+                  ></textarea>
+                  <select
+                    name="obligaciones_directas_aporta_evidencias_item"
+                    required
+                  >
+                    <option value="">Selecciona</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                  </select>
+                  <button type="button" class="icon-button" title="Eliminar">
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+              <button type="button" class="secondary" id="addDirecta">
+                Agregar actividad
+              </button>
+            </section>
+          </div>
+
+          <div class="panel" id="t4">
+            <div class="grid">
+              <label
+                >No. planilla<input name="aportes_planilla" required
+              /></label>
+              <label>Mes de aporte<input name="aportes_mes" required /></label>
+              <label
+                >Fecha pago aportes<input
+                  name="fecha_pago_aportes"
+                  type="date"
+                  required
+              /></label>
+              <label
+                >Operador planilla<input name="operador_planilla" required
+              /></label>
+              <label
+                >Valor salud<input
+                  name="aportes_valor_salud"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Valor pension<input
+                  name="aportes_valor_pension"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Valor riesgos<input
+                  name="aportes_valor_riesgos"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Total aportes<input
+                  name="total_aportes"
+                  readonly
+                  class="money"
+              /></label>
+            </div>
+          </div>
+
+          <div class="panel" id="t5">
+            <section class="actas-section">
+              <div class="actas-header">
+                <span>Acta parcial</span>
+                <span>Periodo</span>
+                <span>Valor</span>
+              </div>
+              <div class="actas-rows" id="actasRows">
+                <div class="actas-row">
+                  <input name="acta_parcial_item" required />
+                  <input name="acta_parcial_periodo_item" required />
+                  <input
+                    name="acta_parcial_valor_item"
+                    required
+                    class="money"
+                  />
+                  <button type="button" class="icon-button" title="Eliminar">
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+              <button type="button" class="secondary" id="addActa">
+                Agregar acta
+              </button>
+            </section>
+
+            <div class="grid">
+              <label
+                >Subtotal actas<input
+                  name="actas_subtotal"
+                  readonly
+                  class="money"
+              /></label>
+              <label
+                >Valor del contrato<input
+                  name="valor_contrato"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Valor anticipo<input
+                  name="valor_anticipo"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Valor pago anticipado<input
+                  name="valor_pago_anticipado"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Valor adiciones<input
+                  name="valor_adiciones"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Valor ejecutado<input
+                  name="valor_ejecutado"
+                  required
+                  class="money"
+                  readonly
+              /></label>
+              <label
+                >Valor a cobrar<input
+                  name="valor_a_cobrar"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Saldo pendiente<input
+                  name="saldo_pendiente"
+                  required
+                  class="money"
+              /></label>
+              <label
+                >Valor presente informe<input
+                  name="valor_presente_informe"
+                  required
+                  class="money"
+              /></label>
+            </div>
+
+            <div class="actions">
+              <button
+                type="submit"
+                class="primary is-disabled"
+                aria-disabled="true"
+              >
+                Generar documentos
+              </button>
+              <span id="status"></span>
+            </div>
+          </div>
+        </form>
+
+        <div class="history-separator" aria-hidden="true"></div>
+        <section class="history" aria-live="polite">
+          <div class="history-header">
+            <h2>Historial</h2>
+            <button type="button" class="secondary" id="refreshHistory">
+              Actualizar
+            </button>
+          </div>
+          <div class="history-list" id="historyList">
+            <span class="history-empty">Sin registros aun.</span>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div class="modal" id="statusModal" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h3 id="modalTitle">Estado</h3>
+        <div id="modalBody"></div>
+        <div class="modal-actions">
+          <button type="button" class="primary" id="closeModal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="evidenceModal" aria-hidden="true">
+      <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
+        <h3>Evidencias fotograficas</h3>
+        <div class="evidence-controls">
+          <input
+            type="file"
+            id="evidenceFiles"
+            accept="image/*"
+            multiple
+            hidden
+          />
+          <button type="button" class="secondary" id="addEvidenceFiles">
+            Agregar fotos
+          </button>
+          <span class="evidence-hint">
+            Se agrupan automaticamente en bloques de 3 fotos.
+          </span>
+        </div>
+        <div id="evidenceGroups" class="evidence-groups"></div>
+        <div class="modal-actions">
+          <button type="button" class="secondary" id="evidenceCancel">
+            Cancelar
+          </button>
+          <button type="button" class="primary" id="evidenceSave">
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const TAB_KEY = "tab_id";
+      const ensureTabId = () => {
+        let tabId = sessionStorage.getItem(TAB_KEY);
+        if (!tabId) {
+          tabId =
+            (window.crypto && crypto.randomUUID && crypto.randomUUID()) ||
+            `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          sessionStorage.setItem(TAB_KEY, tabId);
+        }
+        return tabId;
+      };
+
+      const tabId = ensureTabId();
+
+      document.querySelectorAll("a[href^='/']").forEach((link) => {
+        const rawHref = link.getAttribute("href");
+        if (!rawHref) {
+          return;
+        }
+        const url = new URL(rawHref, window.location.origin);
+        url.searchParams.set("tab_id", tabId);
+        link.setAttribute("href", url.toString());
+      });
+
+      document.querySelectorAll("form").forEach((form) => {
+        if (form.querySelector("input[name='tab_id']")) {
+          return;
+        }
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = "tab_id";
+        hidden.value = tabId;
+        form.appendChild(hidden);
+      });
+
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input, init = {}) => {
+        const headers = new Headers(init.headers || {});
+        headers.set("X-Tab-Id", tabId);
+        return originalFetch(input, { ...init, headers });
+      };
+
+      const tabs = document.querySelectorAll(".tab");
+      const outputDir = "{{ output_dir|e }}";
+      const panels = document.querySelectorAll(".panel");
+      const statusEl = document.getElementById("status");
+      const historyList = document.getElementById("historyList");
+      const refreshHistoryButton = document.getElementById("refreshHistory");
+      const statusModal = document.getElementById("statusModal");
+      const modalTitle = document.getElementById("modalTitle");
+      const modalBody = document.getElementById("modalBody");
+      const closeModalButton = document.getElementById("closeModal");
+      const evidenceModal = document.getElementById("evidenceModal");
+      const evidenceGroups = document.getElementById("evidenceGroups");
+      const evidenceFilesInput = document.getElementById("evidenceFiles");
+      const addEvidenceFilesButton =
+        document.getElementById("addEvidenceFiles");
+      const evidenceCancelButton = document.getElementById("evidenceCancel");
+      const evidenceSaveButton = document.getElementById("evidenceSave");
+      const themeToggle = document.getElementById("themeToggle");
+      const applyTheme = (theme) => {
+        document.body.dataset.theme = theme;
+        if (themeToggle) {
+          const isDark = theme === "dark";
+          themeToggle.setAttribute("aria-pressed", isDark.toString());
+          themeToggle.title = isDark
+            ? "Cambiar a tema claro"
+            : "Cambiar a tema oscuro";
+        }
+      };
+
+      const savedTheme = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+      applyTheme(savedTheme || (prefersDark ? "dark" : "light"));
+
+      if (themeToggle) {
+        themeToggle.addEventListener("click", () => {
+          const nextTheme =
+            document.body.dataset.theme === "dark" ? "light" : "dark";
+          localStorage.setItem("theme", nextTheme);
+          applyTheme(nextTheme);
+        });
+      }
+      const openModal = (title, bodyHtml) => {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = bodyHtml;
+        statusModal.classList.add("is-open");
+        statusModal.setAttribute("aria-hidden", "false");
+      };
+
+      const escapeHtml = (value) =>
+        String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      const evidenceByRow = new Map();
+      let activeEvidenceId = null;
+      let activeEvidenceDraft = null;
+
+      const createEvidenceId = () =>
+        `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+      const cloneEvidence = (value) =>
+        value ? JSON.parse(JSON.stringify(value)) : { images: [], groups: [] };
+
+      const normalizeEvidenceGroups = (evidence) => {
+        const totalGroups = Math.ceil(evidence.images.length / 3);
+        while (evidence.groups.length < totalGroups) {
+          evidence.groups.push({ description: "", date: "" });
+        }
+        if (evidence.groups.length > totalGroups) {
+          evidence.groups = evidence.groups.slice(0, totalGroups);
+        }
+      };
+
+      const renderEvidenceModal = () => {
+        evidenceGroups.innerHTML = "";
+        if (!activeEvidenceDraft) {
+          return;
+        }
+        normalizeEvidenceGroups(activeEvidenceDraft);
+        if (!activeEvidenceDraft.images.length) {
+          const empty = document.createElement("p");
+          empty.className = "evidence-empty";
+          empty.textContent = "Aun no has agregado fotos.";
+          evidenceGroups.appendChild(empty);
+          return;
+        }
+
+        activeEvidenceDraft.groups.forEach((group, groupIndex) => {
+          const groupCard = document.createElement("div");
+          groupCard.className = "evidence-group";
+
+          const groupTitle = document.createElement("h4");
+          groupTitle.textContent = `Grupo ${groupIndex + 1}`;
+          groupCard.appendChild(groupTitle);
+
+          const grid = document.createElement("div");
+          grid.className = "evidence-grid";
+          const startIndex = groupIndex * 3;
+          const chunk = activeEvidenceDraft.images.slice(
+            startIndex,
+            startIndex + 3,
+          );
+          chunk.forEach((image, offset) => {
+            const cell = document.createElement("div");
+            cell.className = "evidence-item";
+            const img = document.createElement("img");
+            img.src = image.dataUrl;
+            img.alt = image.name || "Evidencia";
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.className = "secondary evidence-remove";
+            removeButton.textContent = "Quitar";
+            removeButton.addEventListener("click", () => {
+              const removeIndex = startIndex + offset;
+              activeEvidenceDraft.images.splice(removeIndex, 1);
+              renderEvidenceModal();
+            });
+            cell.appendChild(img);
+            cell.appendChild(removeButton);
+            grid.appendChild(cell);
+          });
+          groupCard.appendChild(grid);
+
+          const fields = document.createElement("div");
+          fields.className = "evidence-fields";
+
+          const descriptionLabel = document.createElement("label");
+          descriptionLabel.textContent = "Descripcion";
+          const descriptionInput = document.createElement("textarea");
+          descriptionInput.value = group.description || "";
+          descriptionInput.addEventListener("input", (event) => {
+            group.description = event.target.value;
+          });
+          descriptionLabel.appendChild(descriptionInput);
+
+          const dateLabel = document.createElement("label");
+          dateLabel.textContent = "Fecha";
+          const dateInput = document.createElement("input");
+          dateInput.type = "date";
+          dateInput.value = group.date || "";
+          dateInput.addEventListener("input", (event) => {
+            group.date = event.target.value;
+          });
+          dateLabel.appendChild(dateInput);
+
+          fields.appendChild(descriptionLabel);
+          fields.appendChild(dateLabel);
+          groupCard.appendChild(fields);
+          evidenceGroups.appendChild(groupCard);
+        });
+      };
+
+      const openEvidenceModal = (row) => {
+        if (!row) {
+          return;
+        }
+        const evidenceId = row.dataset.evidenceId;
+        activeEvidenceId = evidenceId;
+        activeEvidenceDraft = cloneEvidence(evidenceByRow.get(evidenceId));
+        renderEvidenceModal();
+        evidenceModal.classList.add("is-open");
+        evidenceModal.setAttribute("aria-hidden", "false");
+      };
+
+      const closeEvidenceModal = () => {
+        evidenceModal.classList.remove("is-open");
+        evidenceModal.setAttribute("aria-hidden", "true");
+        activeEvidenceId = null;
+        activeEvidenceDraft = null;
+      };
+
+      let activeEjecutadasField = null;
+      let suppressEjecutadasModal = false;
+      let isEjecutadasModal = false;
+
+      const closeModal = () => {
+        statusModal.classList.remove("is-open");
+        statusModal.setAttribute("aria-hidden", "true");
+        if (isEjecutadasModal && activeEjecutadasField) {
+          suppressEjecutadasModal = true;
+          const fieldToFocus = activeEjecutadasField;
+          setTimeout(() => fieldToFocus.focus(), 0);
+        }
+        isEjecutadasModal = false;
+      };
+
+      const readFileAsDataUrl = (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("read_failed"));
+          reader.readAsDataURL(file);
+        });
+
+      if (addEvidenceFilesButton && evidenceFilesInput) {
+        addEvidenceFilesButton.addEventListener("click", () => {
+          evidenceFilesInput.click();
+        });
+
+        evidenceFilesInput.addEventListener("change", async (event) => {
+          if (!activeEvidenceDraft) {
+            return;
+          }
+          const files = Array.from(event.target.files || []);
+          const images = files.filter((file) => file.type.startsWith("image/"));
+          if (!images.length) {
+            return;
+          }
+          const dataUrls = await Promise.all(
+            images.map(async (file) => ({
+              name: file.name,
+              dataUrl: await readFileAsDataUrl(file),
+            })),
+          );
+          activeEvidenceDraft.images.push(...dataUrls);
+          renderEvidenceModal();
+          evidenceFilesInput.value = "";
+        });
+      }
+
+      if (evidenceSaveButton) {
+        evidenceSaveButton.addEventListener("click", () => {
+          if (!activeEvidenceId || !activeEvidenceDraft) {
+            closeEvidenceModal();
+            return;
+          }
+          normalizeEvidenceGroups(activeEvidenceDraft);
+          evidenceByRow.set(activeEvidenceId, activeEvidenceDraft);
+          closeEvidenceModal();
+        });
+      }
+
+      if (evidenceCancelButton) {
+        evidenceCancelButton.addEventListener("click", closeEvidenceModal);
+      }
+
+      if (evidenceModal) {
+        evidenceModal.addEventListener("click", (event) => {
+          if (event.target === evidenceModal) {
+            closeEvidenceModal();
+          }
+        });
+      }
+
+      const userRole = document.body.dataset.userRole || "";
+      if (userRole === "contratista") {
+        const openEjecutadasModal = () => {
+          isEjecutadasModal = true;
+          openModal(
+            "Actividades ejecutadas",
+            "<p>Recuerda redactar este campo en primera persona.</p>",
+          );
+        };
+
+        const maybeShowEjecutadasModal = (target) => {
+          if (
+            !target ||
+            !target.matches(
+              "textarea[name='obligaciones_directas_ejecutadas_item']",
+            )
+          ) {
+            return;
+          }
+          activeEjecutadasField = target;
+          if (target.value.trim()) {
+            return;
+          }
+          if (suppressEjecutadasModal && activeEjecutadasField === target) {
+            return;
+          }
+          if (statusModal.classList.contains("is-open")) {
+            return;
+          }
+          openEjecutadasModal();
+        };
+
+        document.addEventListener("focusin", (event) => {
+          maybeShowEjecutadasModal(event.target);
+        });
+
+        document.addEventListener("click", (event) => {
+          maybeShowEjecutadasModal(event.target);
+        });
+
+        document.addEventListener("focusout", (event) => {
+          const target = event.target;
+          if (
+            target &&
+            target.matches(
+              "textarea[name='obligaciones_directas_ejecutadas_item']",
+            )
+          ) {
+            suppressEjecutadasModal = false;
+          }
+        });
+
+        document.addEventListener("input", (event) => {
+          const target = event.target;
+          if (
+            target &&
+            target.matches(
+              "textarea[name='obligaciones_directas_ejecutadas_item']",
+            ) &&
+            target.value.trim()
+          ) {
+            suppressEjecutadasModal = false;
+          }
+        });
+      }
+
+      const pickSaveDirectory = async () => {
+        if (!window.showDirectoryPicker) {
+          return null;
+        }
+        try {
+          return await window.showDirectoryPicker({ mode: "readwrite" });
+        } catch (error) {
+          return null;
+        }
+      };
+
+      const saveFileToDirectory = async (dirHandle, fileInfo) => {
+        const res = await fetch(fileInfo.url);
+        if (!res.ok) {
+          throw new Error("download_failed");
+        }
+        const blob = await res.blob();
+        const fileHandle = await dirHandle.getFileHandle(fileInfo.name, {
+          create: true,
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      };
+
+      const saveGeneratedFiles = async (dirHandle, files) => {
+        const items = Object.values(files || {});
+        for (const info of items) {
+          await saveFileToDirectory(dirHandle, info);
+        }
+      };
+
+      closeModalButton.addEventListener("click", closeModal);
+      statusModal.addEventListener("click", (event) => {
+        if (event.target === statusModal) {
+          closeModal();
+        }
+      });
+
+      const activateTab = (tabId) => {
+        tabs.forEach((t) => t.classList.remove("active"));
+        panels.forEach((p) => p.classList.remove("active"));
+        const targetTab = document.querySelector(`.tab[data-tab='${tabId}']`);
+        const targetPanel = document.getElementById(tabId);
+        if (targetTab) {
+          targetTab.classList.add("active");
+        }
+        if (targetPanel) {
+          targetPanel.classList.add("active");
+        }
+      };
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          activateTab(tab.dataset.tab);
+        });
+      });
+
+      const renderHistory = (items) => {
+        historyList.innerHTML = "";
+        if (!items.length) {
+          const empty = document.createElement("span");
+          empty.className = "history-empty";
+          empty.textContent = "Sin registros aun.";
+          historyList.appendChild(empty);
+          return;
+        }
+
+        items.forEach((item) => {
+          const row = document.createElement("div");
+          row.className = "history-row";
+          const label = document.createElement("div");
+          label.className = "history-title";
+          const data = item.data || {};
+          const info = [
+            `#${item.id}`,
+            data.contrato_no ? `Contrato ${data.contrato_no}` : "Contrato",
+            data.contratista ? data.contratista : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          label.textContent = info;
+          const meta = document.createElement("div");
+          meta.className = "history-meta";
+          meta.textContent = item.created_at;
+          const actions = document.createElement("div");
+          actions.className = "history-actions";
+          const loadButton = document.createElement("button");
+          loadButton.type = "button";
+          loadButton.className = "secondary";
+          loadButton.textContent = "Cargar";
+          loadButton.dataset.recordId = item.id;
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "danger";
+          deleteButton.textContent = "Eliminar";
+          deleteButton.dataset.deleteId = item.id;
+          actions.appendChild(loadButton);
+          actions.appendChild(deleteButton);
+          row.appendChild(label);
+          row.appendChild(meta);
+          row.appendChild(actions);
+          historyList.appendChild(row);
+        });
+      };
+
+      const loadHistory = async () => {
+        try {
+          const res = await fetch("/history");
+          const json = await res.json();
+          renderHistory(json.items || []);
+        } catch (error) {
+          historyList.innerHTML = "";
+          const empty = document.createElement("span");
+          empty.className = "history-empty";
+          empty.textContent = "No se pudo cargar el historial.";
+          historyList.appendChild(empty);
+        }
+      };
+
+      const parseDdMmAaToIso = (value) => {
+        if (!value) return "";
+        const parts = value.split("/");
+        if (parts.length !== 3) return value;
+        const [day, month, yearPart] = parts;
+        const year = yearPart.length === 2 ? `20${yearPart}` : yearPart;
+        return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+      };
+
+      const setFieldValue = (name, value) => {
+        const field = document.querySelector(`[name='${name}']`);
+        if (!field) return;
+        field.value = value ?? "";
+        updateFieldState(field);
+      };
+
+      const updateFieldState = (field) => {
+        const label = field.closest("label");
+        const hasValue = field.value && field.value.trim();
+        if (hasValue) {
+          field.classList.add("is-filled");
+          field.classList.remove("is-missing");
+          if (label) {
+            label.classList.add("is-filled");
+            label.classList.remove("is-missing");
+          }
+        } else {
+          field.classList.remove("is-filled");
+          if (label) {
+            label.classList.remove("is-filled");
+          }
+        }
+      };
+
+      const markMissing = (field, isMissing) => {
+        const label = field.closest("label");
+        if (isMissing) {
+          field.classList.add("is-missing");
+          if (label) {
+            label.classList.add("is-missing");
+          }
+        } else {
+          field.classList.remove("is-missing");
+          if (label) {
+            label.classList.remove("is-missing");
+          }
+        }
+      };
+
+      const totalField = document.querySelector("input[name='total_aportes']");
+      const aporteFields = [
+        "aportes_valor_salud",
+        "aportes_valor_pension",
+        "aportes_valor_riesgos",
+      ].map((name) => document.querySelector(`input[name='${name}']`));
+
+      const parseMoney = (value) => {
+        if (!value) return 0;
+        const raw = String(value).trim();
+        if (!raw) return 0;
+        const cleaned = raw.replace(/[^0-9,.-]+/g, "");
+        if (!cleaned) return 0;
+        if (cleaned.includes(",")) {
+          const normalized = cleaned.replace(/\./g, "").replace(/,/g, ".");
+          return Number.parseFloat(normalized) || 0;
+        }
+        const normalized = cleaned.replace(/\./g, "");
+        return Number.parseFloat(normalized) || 0;
+      };
+
+      const formatCurrency = (value) => {
+        if (value === "" || value === null || value === undefined) return "";
+        const numberValue = Number(value);
+        if (!Number.isFinite(numberValue)) return "";
+        return new Intl.NumberFormat("es-CO", {
+          style: "currency",
+          currency: "COP",
+          minimumFractionDigits: 0,
+        }).format(numberValue);
+      };
+
+      const updateTotal = () => {
+        const hasValue = aporteFields.some((field) => field.value.trim());
+        const sum = aporteFields.reduce(
+          (acc, field) => acc + parseMoney(field.value),
+          0,
+        );
+        totalField.value = hasValue ? formatCurrency(sum) : "";
+      };
+
+      aporteFields.forEach((field) => {
+        field.addEventListener("input", updateTotal);
+        field.addEventListener("blur", () => {
+          const numberValue = parseMoney(field.value);
+          field.value = numberValue ? formatCurrency(numberValue) : "";
+          updateTotal();
+        });
+      });
+
+      const updateActasSubtotal = () => {
+        const rows = actasRows.querySelectorAll(".actas-row");
+        const hasValue = Array.from(rows).some((row) => {
+          const valueInput = row.querySelector(
+            "input[name='acta_parcial_valor_item']",
+          );
+          return valueInput && valueInput.value.trim();
+        });
+        const total = Array.from(rows).reduce((acc, row) => {
+          const valueInput = row.querySelector(
+            "input[name='acta_parcial_valor_item']",
+          );
+          return acc + parseMoney(valueInput.value);
+        }, 0);
+        actasSubtotalField.value = hasValue ? formatCurrency(total) : "";
+        const valorEjecutadoField = document.querySelector(
+          "input[name='valor_ejecutado']",
+        );
+        if (valorEjecutadoField) {
+          valorEjecutadoField.value = hasValue ? formatCurrency(total) : "";
+          updateFieldState(valorEjecutadoField);
+        }
+      };
+
+      const bindMoneyField = (field) => {
+        field.addEventListener("blur", () => {
+          const numberValue = parseMoney(field.value);
+          if (!field.value.trim()) {
+            field.value = "";
+            updateFieldState(field);
+            return;
+          }
+          field.value = formatCurrency(numberValue);
+          updateFieldState(field);
+        });
+      };
+
+      const form = document.getElementById("form");
+      const submitButton = document.querySelector("button.primary");
+      const validationState = { showMissing: false };
+      let formIsComplete = false;
+      const plazoDia = document.querySelector("select[name='plazo_dia']");
+      const plazoMes = document.querySelector("select[name='plazo_mes']");
+      const plazoAnio = document.querySelector("select[name='plazo_anio']");
+      const fechaExpDia = document.querySelector(
+        "select[name='fecha_expedicion_informe_dia']",
+      );
+      const fechaExpMes = document.querySelector(
+        "select[name='fecha_expedicion_informe_mes']",
+      );
+      const fechaExpAnio = document.querySelector(
+        "select[name='fecha_expedicion_informe_año']",
+      );
+      const directasRows = document.getElementById("directasRows");
+      const actasRows = document.getElementById("actasRows");
+      const addDirectaButton = document.getElementById("addDirecta");
+      const addActaButton = document.getElementById("addActa");
+      const actasSubtotalField = document.querySelector(
+        "input[name='actas_subtotal']",
+      );
+
+      const autosaveKey = `draft_${tabId}`;
+      const autosaveIgnoreNames = new Set([
+        "obligaciones_directas_item",
+        "obligaciones_directas_ejecutadas_item",
+        "obligaciones_directas_aporta_evidencias_item",
+        "acta_parcial_item",
+        "acta_parcial_periodo_item",
+        "acta_parcial_valor_item",
+      ]);
+      let autosaveTimer = null;
+
+      const buildDraftData = () => {
+        const data = {};
+        const formData = new FormData(form);
+        for (const [key, value] of formData.entries()) {
+          if (autosaveIgnoreNames.has(key)) {
+            continue;
+          }
+          data[key] = value;
+        }
+
+        const directasItems = [];
+        directasRows.querySelectorAll(".activity-row").forEach((row) => {
+          const actividad = row.querySelector(
+            "textarea[name='obligaciones_directas_item']",
+          );
+          const ejecutada = row.querySelector(
+            "textarea[name='obligaciones_directas_ejecutadas_item']",
+          );
+          const evidencias = row.querySelector(
+            "select[name='obligaciones_directas_aporta_evidencias_item']",
+          );
+          directasItems.push({
+            actividad_contrato: actividad ? actividad.value : "",
+            actividad_ejecutada: ejecutada ? ejecutada.value : "",
+            aporta_evidencias: evidencias ? evidencias.value : "",
+          });
+        });
+        data.obligaciones_directas_items = directasItems;
+
+        const actasItems = [];
+        actasRows.querySelectorAll(".actas-row").forEach((row) => {
+          const acta = row.querySelector("input[name='acta_parcial_item']");
+          const periodo = row.querySelector(
+            "input[name='acta_parcial_periodo_item']",
+          );
+          const valor = row.querySelector(
+            "input[name='acta_parcial_valor_item']",
+          );
+          actasItems.push({
+            acta: acta ? acta.value : "",
+            periodo: periodo ? periodo.value : "",
+            valor: valor ? valor.value : "",
+          });
+        });
+        data.actas_parciales = actasItems;
+
+        return data;
+      };
+
+      const saveDraft = () => {
+        const payload = {
+          data: buildDraftData(),
+          activeTab: document.querySelector(".tab.active")?.dataset.tab || "t1",
+        };
+        localStorage.setItem(autosaveKey, JSON.stringify(payload));
+      };
+
+      const scheduleAutosave = () => {
+        if (autosaveTimer) {
+          window.clearTimeout(autosaveTimer);
+        }
+        autosaveTimer = window.setTimeout(saveDraft, 400);
+      };
+
+      const loadDraft = () => {
+        const raw = localStorage.getItem(autosaveKey);
+        if (!raw) {
+          return null;
+        }
+        try {
+          return JSON.parse(raw);
+        } catch (error) {
+          return null;
+        }
+      };
+
+      const clearDraft = () => {
+        localStorage.removeItem(autosaveKey);
+      };
+
+      const meses = [
+        "enero",
+        "febrero",
+        "marzo",
+        "abril",
+        "mayo",
+        "junio",
+        "julio",
+        "agosto",
+        "septiembre",
+        "octubre",
+        "noviembre",
+        "diciembre",
+      ];
+
+      const fillMeses = (selectElement) => {
+        meses.forEach((mes) => {
+          const option = document.createElement("option");
+          option.value = mes;
+          option.textContent = mes;
+          selectElement.appendChild(option);
+        });
+      };
+
+      const fillAnios = (selectElement) => {
+        const currentYear = new Date().getFullYear();
+        const startYear = currentYear - 5;
+        const endYear = currentYear + 5;
+        for (let year = startYear; year <= endYear; year += 1) {
+          const option = document.createElement("option");
+          option.value = String(year);
+          option.textContent = String(year);
+          selectElement.appendChild(option);
+        }
+      };
+
+      const daysInMonth = (year, monthIndex) =>
+        new Date(year, monthIndex + 1, 0).getDate();
+
+      const updateDias = (daySelect, monthSelect, yearSelect) => {
+        const mesIndex = meses.indexOf(monthSelect.value);
+        const anio = Number(yearSelect.value);
+        const currentValue = daySelect.value;
+
+        while (daySelect.options.length > 1) {
+          daySelect.remove(1);
+        }
+
+        if (mesIndex < 0 || !anio) {
+          daySelect.value = "";
+          return;
+        }
+
+        const totalDias = daysInMonth(anio, mesIndex);
+        for (let dia = 1; dia <= totalDias; dia += 1) {
+          const option = document.createElement("option");
+          option.value = String(dia);
+          option.textContent = String(dia);
+          daySelect.appendChild(option);
+        }
+
+        if (currentValue && Number(currentValue) <= totalDias) {
+          daySelect.value = currentValue;
+        }
+      };
+
+      const updateSubmitState = () => {
+        const requiredFields = Array.from(
+          document.querySelectorAll("#form [required]"),
+        );
+        let allFilled = true;
+        let missingCount = 0;
+        const missingByTab = {};
+        requiredFields.forEach((field) => {
+          const hasValue = field.value.trim();
+          updateFieldState(field);
+          if (!hasValue) {
+            allFilled = false;
+            missingCount += 1;
+            const panel = field.closest(".panel");
+            if (panel) {
+              missingByTab[panel.id] = (missingByTab[panel.id] || 0) + 1;
+            }
+          }
+          if (validationState.showMissing) {
+            markMissing(field, !hasValue);
+          } else {
+            markMissing(field, false);
+          }
+        });
+        panels.forEach((panel) => {
+          const tabButton = document.querySelector(
+            `.tab[data-tab='${panel.id}']`,
+          );
+          const hasMissing = Boolean(missingByTab[panel.id]);
+          if (validationState.showMissing && hasMissing) {
+            panel.classList.add("has-missing");
+            if (tabButton) {
+              tabButton.classList.add("missing");
+            }
+          } else {
+            panel.classList.remove("has-missing");
+            if (tabButton) {
+              tabButton.classList.remove("missing");
+            }
+          }
+        });
+        formIsComplete = allFilled;
+        submitButton.classList.toggle("is-disabled", !allFilled);
+        submitButton.setAttribute("aria-disabled", (!allFilled).toString());
+        if (!allFilled && !validationState.showMissing) {
+          statusEl.textContent = `Faltan ${missingCount} campos por diligenciar.`;
+        }
+        if (allFilled && statusEl.textContent.startsWith("Faltan")) {
+          statusEl.textContent = "";
+          validationState.showMissing = false;
+        }
+      };
+
+      const bindFieldEvents = (field) => {
+        field.addEventListener("input", updateSubmitState);
+        field.addEventListener("change", updateSubmitState);
+        field.addEventListener("blur", () => updateFieldState(field));
+        field.addEventListener("input", scheduleAutosave);
+        field.addEventListener("change", scheduleAutosave);
+      };
+
+      Array.from(document.querySelectorAll("#form [required]")).forEach(
+        (field) => {
+          bindFieldEvents(field);
+        },
+      );
+
+      Array.from(document.querySelectorAll(".money")).forEach((field) => {
+        bindMoneyField(field);
+      });
+
+      const updateRemoveButtons = (container) => {
+        const rows = container.querySelectorAll(".activity-row");
+        rows.forEach((row) => {
+          const removeButton = row.querySelector(".icon-button");
+          if (removeButton) {
+            removeButton.disabled = rows.length <= 1;
+          }
+        });
+      };
+
+      const createActivityRow = (
+        container,
+        nameBase,
+        includeEvidencias,
+        values = {},
+      ) => {
+        const row = document.createElement("div");
+        row.className = "activity-row";
+        row.dataset.evidenceId = createEvidenceId();
+
+        const actividad = document.createElement("textarea");
+        actividad.name = `${nameBase}_item`;
+        actividad.required = true;
+        actividad.value = values.actividad_contrato || "";
+
+        const ejecutada = document.createElement("textarea");
+        ejecutada.name = `${nameBase}_ejecutadas_item`;
+        ejecutada.required = true;
+        ejecutada.value = values.actividad_ejecutada || "";
+
+        let evidencias = null;
+        if (includeEvidencias) {
+          evidencias = document.createElement("select");
+          evidencias.name = `${nameBase}_aporta_evidencias_item`;
+          evidencias.required = true;
+
+          const defaultOption = document.createElement("option");
+          defaultOption.value = "";
+          defaultOption.textContent = "Selecciona";
+          evidencias.appendChild(defaultOption);
+
+          const optionSi = document.createElement("option");
+          optionSi.value = "SI";
+          optionSi.textContent = "SI";
+          evidencias.appendChild(optionSi);
+
+          const optionNo = document.createElement("option");
+          optionNo.value = "NO";
+          optionNo.textContent = "NO";
+          evidencias.appendChild(optionNo);
+          evidencias.value = values.aporta_evidencias || "";
+          if (userRole === "contratista") {
+            evidencias.addEventListener("change", (event) => {
+              if (event.target.value === "SI") {
+                openEvidenceModal(row);
+              }
+            });
+          }
+        }
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "icon-button";
+        removeButton.title = "Eliminar";
+        removeButton.textContent = "Eliminar";
+        removeButton.addEventListener("click", () => {
+          evidenceByRow.delete(row.dataset.evidenceId);
+          row.remove();
+          updateRemoveButtons(container);
+          updateSubmitState();
+        });
+
+        row.appendChild(actividad);
+        row.appendChild(ejecutada);
+        if (evidencias) {
+          row.appendChild(evidencias);
+        }
+        row.appendChild(removeButton);
+        container.appendChild(row);
+
+        bindFieldEvents(actividad);
+        bindFieldEvents(ejecutada);
+        if (evidencias) {
+          bindFieldEvents(evidencias);
+        }
+
+        updateFieldState(actividad);
+        updateFieldState(ejecutada);
+        if (evidencias) {
+          updateFieldState(evidencias);
+        }
+
+        updateRemoveButtons(container);
+
+        if (values.evidencias) {
+          evidenceByRow.set(
+            row.dataset.evidenceId,
+            cloneEvidence(values.evidencias),
+          );
+        }
+      };
+
+      const updateActaRemoveButtons = () => {
+        const rows = actasRows.querySelectorAll(".actas-row");
+        rows.forEach((row) => {
+          const removeButton = row.querySelector(".icon-button");
+          if (removeButton) {
+            removeButton.disabled = rows.length <= 1;
+          }
+        });
+      };
+
+      const createActaRow = (values = {}) => {
+        const row = document.createElement("div");
+        row.className = "actas-row";
+
+        const acta = document.createElement("input");
+        acta.name = "acta_parcial_item";
+        acta.required = true;
+        acta.value = values.acta || "";
+
+        const periodo = document.createElement("input");
+        periodo.name = "acta_parcial_periodo_item";
+        periodo.required = true;
+        periodo.value = values.periodo || "";
+
+        const valor = document.createElement("input");
+        valor.name = "acta_parcial_valor_item";
+        valor.required = true;
+        valor.className = "money";
+        valor.value = values.valor || "";
+        valor.addEventListener("input", updateActasSubtotal);
+        bindMoneyField(valor);
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "icon-button";
+        removeButton.title = "Eliminar";
+        removeButton.textContent = "Eliminar";
+        removeButton.addEventListener("click", () => {
+          row.remove();
+          updateActaRemoveButtons();
+          updateActasSubtotal();
+          updateSubmitState();
+        });
+
+        row.appendChild(acta);
+        row.appendChild(periodo);
+        row.appendChild(valor);
+        row.appendChild(removeButton);
+        actasRows.appendChild(row);
+
+        bindFieldEvents(acta);
+        bindFieldEvents(periodo);
+        bindFieldEvents(valor);
+
+        updateFieldState(acta);
+        updateFieldState(periodo);
+        updateFieldState(valor);
+
+        updateActaRemoveButtons();
+      };
+
+      addDirectaButton.addEventListener("click", () => {
+        createActivityRow(directasRows, "obligaciones_directas", true);
+        updateSubmitState();
+        scheduleAutosave();
+      });
+
+      addActaButton.addEventListener("click", () => {
+        createActaRow();
+        updateSubmitState();
+        scheduleAutosave();
+      });
+
+      const bindInitialRemoveButtons = (container) => {
+        container.querySelectorAll(".icon-button").forEach((button) => {
+          button.addEventListener("click", (event) => {
+            const row = event.target.closest(".activity-row");
+            if (!row) return;
+            evidenceByRow.delete(row.dataset.evidenceId);
+            row.remove();
+            updateRemoveButtons(container);
+            updateSubmitState();
+            scheduleAutosave();
+          });
+        });
+      };
+
+      const initEvidenceRows = () => {
+        directasRows.querySelectorAll(".activity-row").forEach((row) => {
+          if (!row.dataset.evidenceId) {
+            row.dataset.evidenceId = createEvidenceId();
+          }
+          const evidenciasField = row.querySelector(
+            "select[name='obligaciones_directas_aporta_evidencias_item']",
+          );
+          if (evidenciasField && userRole === "contratista") {
+            evidenciasField.addEventListener("change", (event) => {
+              if (event.target.value === "SI") {
+                openEvidenceModal(row);
+              }
+            });
+          }
+        });
+      };
+
+      bindInitialRemoveButtons(directasRows);
+      initEvidenceRows();
+      actasRows.querySelectorAll(".icon-button").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const row = event.target.closest(".actas-row");
+          if (!row) return;
+          row.remove();
+          updateActaRemoveButtons();
+          updateActasSubtotal();
+          updateSubmitState();
+          scheduleAutosave();
+        });
+      });
+
+      actasRows
+        .querySelectorAll("input[name='acta_parcial_valor_item']")
+        .forEach((field) => {
+          field.addEventListener("input", updateActasSubtotal);
+          bindMoneyField(field);
+        });
+
+      fillMeses(plazoMes);
+      fillMeses(fechaExpMes);
+      fillAnios(plazoAnio);
+      fillAnios(fechaExpAnio);
+      updateDias(plazoDia, plazoMes, plazoAnio);
+      updateDias(fechaExpDia, fechaExpMes, fechaExpAnio);
+      plazoMes.addEventListener("change", () =>
+        updateDias(plazoDia, plazoMes, plazoAnio),
+      );
+      plazoAnio.addEventListener("change", () =>
+        updateDias(plazoDia, plazoMes, plazoAnio),
+      );
+      fechaExpMes.addEventListener("change", () =>
+        updateDias(fechaExpDia, fechaExpMes, fechaExpAnio),
+      );
+      fechaExpAnio.addEventListener("change", () =>
+        updateDias(fechaExpDia, fechaExpMes, fechaExpAnio),
+      );
+
+      updateRemoveButtons(directasRows);
+      updateActaRemoveButtons();
+      updateActasSubtotal();
+      updateSubmitState();
+
+      submitButton.addEventListener("click", (event) => {
+        if (formIsComplete) {
+          return;
+        }
+        event.preventDefault();
+        validationState.showMissing = true;
+        updateSubmitState();
+        const missingFields = Array.from(
+          document.querySelectorAll("#form [required].is-missing"),
+        );
+        const missingLabels = missingFields
+          .map((field) => {
+            const label = field.closest("label");
+            return label ? label.textContent.trim() : field.name;
+          })
+          .filter(Boolean);
+        const listItems = missingLabels
+          .map((text) => `<li>${text}</li>`)
+          .join("");
+        openModal(
+          "Faltan campos",
+          `<p>Completa los siguientes campos:</p><ul>${listItems}</ul>`,
+        );
+        const firstMissing = document.querySelector(
+          "#form [required].is-missing",
+        );
+        if (firstMissing) {
+          const panel = firstMissing.closest(".panel");
+          if (panel) {
+            activateTab(panel.id);
+            panel.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+      });
+
+      const setActivityRows = (
+        container,
+        nameBase,
+        includeEvidencias,
+        items,
+      ) => {
+        container.innerHTML = "";
+        if (!items || !items.length) {
+          createActivityRow(container, nameBase, includeEvidencias);
+          return;
+        }
+        items.forEach((item) =>
+          createActivityRow(container, nameBase, includeEvidencias, item),
+        );
+      };
+
+      const setActaRows = (items) => {
+        actasRows.innerHTML = "";
+        if (!items || !items.length) {
+          createActaRow();
+          return;
+        }
+        items.forEach((item) => createActaRow(item));
+      };
+
+      const applyHistoryData = (data) => {
+        if (!data) return;
+        evidenceByRow.clear();
+        Object.keys(data).forEach((key) => {
+          if (
+            [
+              "obligaciones_directas_items",
+              "obligaciones_generales_items",
+              "actas_parciales",
+              "actas_subtotal",
+            ].includes(key)
+          ) {
+            return;
+          }
+          setFieldValue(key, data[key]);
+        });
+
+        [
+          "fecha_contrato",
+          "fecha_inicio_contrato",
+          "fecha_vencimiento_contrato",
+          "periodo_i_de",
+          "periodo_i_a",
+          "fecha_presentacion_informe",
+          "fecha_pago_aportes",
+        ].forEach((name) => {
+          const raw = data[name];
+          if (!raw) return;
+          setFieldValue(name, parseDdMmAaToIso(raw));
+        });
+
+        setFieldValue(
+          "fecha_expedicion_informe_año",
+          data.fecha_expedicion_informe_año || "",
+        );
+        setFieldValue(
+          "fecha_expedicion_informe_mes",
+          data.fecha_expedicion_informe_mes || "",
+        );
+        updateDias(fechaExpDia, fechaExpMes, fechaExpAnio);
+        setFieldValue(
+          "fecha_expedicion_informe_dia",
+          data.fecha_expedicion_informe_dia || "",
+        );
+
+        setFieldValue("plazo_anio", data.plazo_anio || "");
+        setFieldValue("plazo_mes", data.plazo_mes || "");
+        updateDias(plazoDia, plazoMes, plazoAnio);
+        setFieldValue("plazo_dia", data.plazo_dia || "");
+
+        setActivityRows(
+          directasRows,
+          "obligaciones_directas",
+          true,
+          data.obligaciones_directas_items || [],
+        );
+        setActaRows(data.actas_parciales || []);
+        updateRemoveButtons(directasRows);
+        updateActaRemoveButtons();
+        updateActasSubtotal();
+        updateSubmitState();
+        scheduleAutosave();
+      };
+
+      const draftPayload = loadDraft();
+      if (draftPayload && draftPayload.data) {
+        applyHistoryData(draftPayload.data);
+        if (draftPayload.activeTab) {
+          activateTab(draftPayload.activeTab);
+        }
+      }
+
+      historyList.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (
+          target.matches("button[data-record-id]") ||
+          target.dataset.recordId
+        ) {
+          const recordId = target.dataset.recordId;
+          if (!recordId) return;
+          try {
+            const res = await fetch(`/history/${recordId}`);
+            const json = await res.json();
+            if (json.ok) {
+              applyHistoryData(json.item.data);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          } catch (error) {
+            statusEl.textContent = "No se pudo cargar el registro";
+          }
+          return;
+        }
+
+        if (
+          target.matches("button[data-delete-id]") ||
+          target.dataset.deleteId
+        ) {
+          const recordId = target.dataset.deleteId;
+          if (!recordId) return;
+          if (!window.confirm("Eliminar este registro del historial?")) {
+            return;
+          }
+          try {
+            const res = await fetch(`/history/${recordId}/delete`, {
+              method: "POST",
+            });
+            const json = await res.json();
+            if (json.ok) {
+              loadHistory();
+              statusEl.textContent = "Registro eliminado";
+            } else {
+              statusEl.textContent = "No se pudo eliminar el registro";
+            }
+          } catch (error) {
+            statusEl.textContent = "No se pudo eliminar el registro";
+          }
+        }
+      });
+
+      const formatDateToDdMmAa = (value) => {
+        if (!value) return "";
+        const parts = value.split("-");
+        if (parts.length !== 3) return value;
+        const [year, month, day] = parts;
+        return `${day}/${month}/${year.slice(-2)}`;
+      };
+
+      const dateFieldNames = [
+        "fecha_contrato",
+        "fecha_inicio_contrato",
+        "fecha_vencimiento_contrato",
+        "periodo_i_de",
+        "periodo_i_a",
+        "fecha_presentacion_informe",
+        "fecha_pago_aportes",
+      ];
+
+      document.getElementById("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!formIsComplete) {
+          validationState.showMissing = true;
+          updateSubmitState();
+          return;
+        }
+        const missingEvidence = [];
+        directasRows.querySelectorAll(".activity-row").forEach((row, index) => {
+          const evidenciasField = row.querySelector(
+            "select[name='obligaciones_directas_aporta_evidencias_item']",
+          );
+          if (!evidenciasField || evidenciasField.value !== "SI") {
+            return;
+          }
+          const evidenceId = row.dataset.evidenceId;
+          const evidence = evidenceId ? evidenceByRow.get(evidenceId) : null;
+          if (!evidence || !evidence.images || !evidence.images.length) {
+            missingEvidence.push(index + 1);
+          }
+        });
+        if (missingEvidence.length) {
+          const items = missingEvidence
+            .map((pos) => `<li>Actividad ${pos}</li>`)
+            .join("");
+          openModal(
+            "Faltan evidencias",
+            `<p>Debes adjuntar fotos para:</p><ul>${items}</ul>`,
+          );
+          return;
+        }
+        const saveDirHandle = await pickSaveDirectory();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        dateFieldNames.forEach((name) => {
+          data[name] = formatDateToDdMmAa(data[name]);
+        });
+        const actas = [];
+        actasRows.querySelectorAll(".actas-row").forEach((row) => {
+          const acta = row
+            .querySelector("input[name='acta_parcial_item']")
+            .value.trim();
+          const periodo = row
+            .querySelector("input[name='acta_parcial_periodo_item']")
+            .value.trim();
+          const valorRaw = row
+            .querySelector("input[name='acta_parcial_valor_item']")
+            .value.trim();
+
+          if (!acta && !periodo && !valorRaw) {
+            return;
+          }
+
+          const valorNum = parseMoney(valorRaw);
+          actas.push({
+            acta,
+            periodo,
+            valor: valorRaw,
+            valor_num: valorNum,
+          });
+        });
+
+        const actasSubtotalNum = actas.reduce(
+          (acc, item) => acc + (item.valor_num || 0),
+          0,
+        );
+        data.actas_parciales = actas;
+        data.actas_subtotal = actasSubtotalNum
+          ? formatCurrency(actasSubtotalNum)
+          : "";
+        const collectRows = (container, nameBase) => {
+          const items = [];
+          const actividadText = [];
+          const ejecutadaText = [];
+          container.querySelectorAll(".activity-row").forEach((row) => {
+            const actividad = row
+              .querySelector(`textarea[name='${nameBase}_item']`)
+              .value.trim();
+            const ejecutada = row
+              .querySelector(`textarea[name='${nameBase}_ejecutadas_item']`)
+              .value.trim();
+            const evidenciasField = row.querySelector(
+              `select[name='${nameBase}_aporta_evidencias_item']`,
+            );
+            const evidencias = evidenciasField
+              ? evidenciasField.value.trim()
+              : "";
+
+            if (!actividad && !ejecutada && !evidencias) {
+              return;
+            }
+
+            const item = {
+              actividad_contrato: actividad,
+              actividad_ejecutada: ejecutada,
+            };
+            if (evidenciasField) {
+              item.aporta_evidencias = evidencias;
+              if (evidencias === "SI") {
+                const evidenceId = row.dataset.evidenceId;
+                const evidence = evidenceId
+                  ? evidenceByRow.get(evidenceId)
+                  : null;
+                if (evidence) {
+                  item.evidencias = evidence;
+                }
+              }
+            }
+            items.push(item);
+            actividadText.push(actividad);
+            ejecutadaText.push(ejecutada);
+          });
+
+          return {
+            items,
+            actividadText: actividadText.join("\n"),
+            ejecutadaText: ejecutadaText.join("\n"),
+          };
+        };
+
+        const directasData = collectRows(directasRows, "obligaciones_directas");
+        data.obligaciones_directas_items = directasData.items;
+        data.obligaciones_directas = directasData.actividadText;
+        data.obligaciones_directas_ejecutadas = directasData.ejecutadaText;
+        data.obligaciones_generales_items = [];
+        data.obligaciones_generales = "";
+        data.obligaciones_generales_ejecutadas = "";
+        statusEl.textContent = "Generando...";
+
+        const res = await fetch("/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+
+        const json = await res.json();
+        statusEl.textContent = json.ok ? "Listo" : "Error";
+        if (json.ok) {
+          validationState.showMissing = false;
+          updateSubmitState();
+          loadHistory();
+          clearDraft();
+          let detailMessage =
+            "<p>Los documentos se generaron correctamente.</p>";
+          const fileNames = Object.values(json.files || {})
+            .map((item) => item.name)
+            .filter(Boolean);
+          if (fileNames.length) {
+            detailMessage += "<p><strong>Archivos:</strong></p>";
+            detailMessage +=
+              "<ul>" +
+              fileNames.map((name) => `<li>${escapeHtml(name)}</li>`).join("") +
+              "</ul>";
+          }
+          if (outputDir) {
+            detailMessage += `<p><strong>Ruta:</strong> ${escapeHtml(outputDir)}</p>`;
+          }
+          if (saveDirHandle) {
+            statusEl.textContent = "Guardando archivos...";
+            try {
+              await saveGeneratedFiles(saveDirHandle, json.files);
+              detailMessage =
+                "<p>Los documentos se generaron y se guardaron en la carpeta seleccionada.</p>";
+            } catch (error) {
+              detailMessage =
+                "<p>Los documentos se generaron, pero no se pudieron guardar en la carpeta seleccionada.</p>";
+            }
+          } else if (!window.showDirectoryPicker) {
+            detailMessage =
+              "<p>Los documentos se generaron. Tu navegador no permite elegir carpeta; revisa la carpeta output.</p>";
+          } else {
+            detailMessage =
+              "<p>Los documentos se generaron. No seleccionaste carpeta; revisa la carpeta output.</p>";
+          }
+          openModal("Informes generados con exito", detailMessage);
+        }
+      });
+
+      refreshHistoryButton.addEventListener("click", loadHistory);
+      loadHistory();
+    </script>
+    <script>
+      // SUPERVISOR REVIEW LOGIC (JS)
+      if (userRole === "supervisor") {
+        // --- Cargar informes ---
+        async function fetchSupervisorReports() {
+          const res = await fetch("/api/supervisor/reports");
+          const json = await res.json();
+          return json.ok ? json.reports : [];
+        }
+
+        async function fetchSupervisorReportDetail(reportId) {
+          const res = await fetch(`/api/supervisor/report/${reportId}`);
+          const json = await res.json();
+          return json.ok ? json : null;
+        }
+
+        async function sendSupervisorReview(reportId, payload) {
+          const res = await fetch(`/api/supervisor/report/${reportId}/review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json();
+          return json.ok;
+        }
+
+        // --- Render tabla de informes ---
+        async function renderSupervisorReportsTable() {
+          const tbody = document.querySelector(
+            "#supervisor-reports-table tbody",
+          );
+          tbody.innerHTML = "";
+          const reports = await fetchSupervisorReports();
+          let filtered = reports.filter((r) => {
+            const contractor = document
+              .getElementById("filter-contractor")
+              .value.toLowerCase();
+            const period = document.getElementById("filter-period").value;
+            const status = document.getElementById("filter-status").value;
+            return (
+              (!contractor ||
+                r.contractor.toLowerCase().includes(contractor)) &&
+              (!period || r.period === period) &&
+              (!status || r.status === status)
+            );
+          });
+          for (const report of filtered) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+            <td>${report.contractor}</td>
+            <td>${report.period}</td>
+            <td>${capitalize(report.status)}</td>
+            <td><a href="${report.docUrl}" target="_blank">Descargar</a></td>
+            <td><button onclick="openSupervisorReviewPanel(${report.id})">Revisar</button></td>
+          `;
+            tbody.appendChild(tr);
+          }
+        }
+
+        function capitalize(str) {
+          return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        // --- Abrir panel de revisión ---
+        async function openSupervisorReviewPanel(reportId) {
+          document.getElementById("supervisor-review-panel").style.display = "";
+          const detail = await fetchSupervisorReportDetail(reportId);
+          renderSupervisorActivities(detail.actividades);
+          renderSupervisorHistory(detail.history);
+          document.getElementById("supervisor-approve-report").onclick = () =>
+            approveReport(reportId);
+          document.getElementById("supervisor-reject-report").onclick = () =>
+            rejectReport(reportId);
+          document.getElementById("supervisor-save-draft").onclick = () =>
+            saveDraft(reportId);
+          document.getElementById("supervisor-global-observation").value =
+            detail.observacion_global || "";
+          document.getElementById("supervisor-notification").style.display =
+            "none";
+        }
+
+        // --- Render actividades ---
+        function renderSupervisorActivities(activities) {
+          const container = document.getElementById(
+            "supervisor-activities-list",
+          );
+          container.innerHTML = "";
+          for (const act of activities) {
+            const div = document.createElement("div");
+            div.className = "supervisor-activity-row";
+            div.innerHTML = `
+            <span>${act.desc}</span>
+            <select data-act-id="${act.id}" class="supervisor-activity-status">
+              <option value="cumplida" ${act.status === "cumplida" ? "selected" : ""}>Cumplida</option>
+              <option value="no cumplida" ${act.status === "no cumplida" ? "selected" : ""}>No cumplida</option>
+              <option value="pendiente" ${act.status === "pendiente" ? "selected" : ""}>Pendiente</option>
+            </select>
+            <input type="text" data-act-id="${act.id}" class="supervisor-activity-obs" placeholder="Observación" value="${act.obs || ""}">
+          `;
+            container.appendChild(div);
+          }
+        }
+
+        // --- Render historial ---
+        function renderSupervisorHistory(history) {
+          const ul = document.getElementById("supervisor-history-list");
+          ul.innerHTML = "";
+          for (const h of history) {
+            const li = document.createElement("li");
+            li.textContent = `${h.date}: ${h.action} por ${h.by}`;
+            ul.appendChild(li);
+          }
+        }
+
+        // --- Aprobar, rechazar, guardar borrador ---
+        async function approveReport(reportId) {
+          await submitReview(reportId, "aprobado");
+          alert("Informe aprobado. Se notificará al contratista.");
+          document.getElementById("supervisor-notification").style.display = "";
+        }
+        async function rejectReport(reportId) {
+          await submitReview(reportId, "rechazado");
+          alert("Informe rechazado. Se notificará al contratista.");
+          document.getElementById("supervisor-notification").style.display = "";
+        }
+        async function saveDraftSupervisor(reportId) {
+          await submitReview(reportId, "pendiente");
+          alert("Revisión parcial guardada.");
+        }
+
+        async function submitReview(reportId, status) {
+          const actividades = Array.from(
+            document.querySelectorAll(".supervisor-activity-row"),
+          ).map((row) => {
+            const id = row.querySelector(".supervisor-activity-status").dataset
+              .actId;
+            const estado = row.querySelector(
+              ".supervisor-activity-status",
+            ).value;
+            const obs = row.querySelector(".supervisor-activity-obs").value;
+            return { id, status: estado, obs };
+          });
+          const observacion_global = document.getElementById(
+            "supervisor-global-observation",
+          ).value;
+          await sendSupervisorReview(reportId, {
+            actividades,
+            status,
+            observacion_global,
+          });
+        }
+
+        // --- Filtros ---
+        document.getElementById("btn-filter-reports").onclick =
+          renderSupervisorReportsTable;
+        document.getElementById("filter-contractor").oninput =
+          renderSupervisorReportsTable;
+        document.getElementById("filter-period").onchange =
+          renderSupervisorReportsTable;
+        document.getElementById("filter-status").onchange =
+          renderSupervisorReportsTable;
+
+        // --- Inicialización ---
+        function showSupervisorSection() {
+          document.getElementById("supervisor-review-section").style.display =
+            "";
+          renderSupervisorReportsTable();
+        }
+        showSupervisorSection();
+      }
+    </script>
+  </body>
+</html>
