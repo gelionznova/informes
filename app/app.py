@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import threading
+import unicodedata
 import webbrowser
 from functools import wraps
 import secrets
@@ -80,23 +81,32 @@ ALLOWED_ACTIVITY_STATUS = {"cumplida", "no cumplida", "pendiente"}
 
 verb_map = [
     (r"aprob[éeo]\b", "aprobó"),
+    (r"apoy[éeo]\b", "apoyó"),
     (r"archiv[éeo]\b", "archivó"),
+    (r"asist[íio]\b", "asistió"),
     (r"asesor[éeo]\b", "asesoró"),
+    (r"atend[íio]\b", "atendió"),
+    (r"busc[éeo]\b", "buscó"),
     (r"capacit[éeo]\b", "capacitó"),
     (r"certific[éeo]\b", "certificó"),
     (r"comunic[éeo]\b", "comunicó"),
     (r"consolid[éeo]\b", "consolidó"),
+    (r"coordin[éeo]\b", "coordinó"),
     (r"control[éeo]\b", "controló"),
     (r"correspond[íio]\b", "correspondió"),
+    (r"cumpl[íio]\b", "cumplió"),
     (r"custodi[éeo]\b", "custodió"),
     (r"digitaliz[éeo]\b", "digitalizó"),
     (r"diligenci[éeo]\b", "diligenció"),
+    (r"elabor[éeo]\b", "elaboró"),
     (r"elimin[éeo]\b", "eliminó"),
     (r"emit[íio]\b", "emitió"),
+    (r"envi[éeo]\b", "envió"),
     (r"evalu[éeo]\b", "evaluó"),
     (r"exped[íio]\b", "expidió"),
     (r"facilit[éeo]\b", "facilitó"),
     (r"formaliz[éeo]\b", "formalizó"),
+    (r"gestion[éeo]\b", "gestionó"),
     (r"inform[éeo]\b", "informó"),
     (r"inspeccion[éeo]\b", "inspeccionó"),
     (r"instal[éeo]\b", "instaló"),
@@ -110,11 +120,18 @@ verb_map = [
     (r"organiz[éeo]\b", "organizó"),
     (r"planific[éeo]\b", "planificó"),
     (r"proces[éeo]\b", "procesó"),
+    (r"realic[éeo]\b", "realizó"),
+    (r"realiz[éeo]\b", "realizó"),
+    (r"redact[éeo]\b", "redactó"),
     (r"registr[éeo]\b", "registró"),
     (r"report[éeo]\b", "reportó"),
+    (r"revis[éeo]\b", "revisó"),
     (r"resolv[íio]\b", "resolvió"),
     (r"respond[íio]\b", "respondió"),
     (r"reuni[óo]\b", "reunió"),
+    (r"socializ[éeo]\b", "socializó"),
+    (r"tramit[éeo]\b", "tramitó"),
+    (r"verific[éeo]\b", "verificó"),
 ]
 
 passive_map = [
@@ -407,11 +424,81 @@ def _ensure_default_roles_and_admin() -> None:
                 "0000000000",
             )
 
+
+_FIRST_PERSON_TO_THIRD_IRREGULAR = {
+    "fui": "fue",
+    "di": "dio",
+    "vi": "vio",
+    "hice": "hizo",
+    "traje": "trajo",
+    "dije": "dijo",
+    "puse": "puso",
+    "estuve": "estuvo",
+    "tuve": "tuvo",
+}
+
+
+def _convert_first_person_verb(word: str) -> str:
+    low = unicodedata.normalize("NFC", word.lower())
+    if low in _FIRST_PERSON_TO_THIRD_IRREGULAR:
+        converted = _FIRST_PERSON_TO_THIRD_IRREGULAR[low]
+    elif low.endswith("gué") and len(low) > 3:
+        converted = low[:-3] + "gó"
+    elif low.endswith("qué") and len(low) > 3:
+        converted = low[:-3] + "có"
+    elif low.endswith("cé") and len(low) > 2:
+        converted = low[:-2] + "zó"
+    elif low.endswith("é") and len(low) > 2:
+        converted = low[:-1] + "ó"
+    elif low.endswith("í") and len(low) > 1:
+        converted = low[:-1] + "ió"
+    else:
+        return word
+
+    if word.isupper():
+        return converted.upper()
+    if word and word[0].isupper():
+        return converted.capitalize()
+    return converted
+
+
+def _convert_first_person_fallback(text: str) -> str:
+    words = re.findall(r"\b[\wáéíóúüñÁÉÍÓÚÜÑ]+\b", text, flags=re.UNICODE)
+    if not words:
+        return text
+
+    for word in words:
+        converted = _convert_first_person_verb(word)
+        if converted != word:
+            return re.sub(
+                rf"\b{re.escape(word)}\b",
+                converted,
+                text,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+    return text
+
+
+def _normalize_first_person_pronouns(text: str) -> str:
+    replacements = [
+        (r"\bconmigo\b", "con él"),
+        (r"\bpara mí\b", "para él"),
+        (r"\bmi\s+(?=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])", "su "),
+        (r"\bmis\s+(?=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])", "sus "),
+        (r"\bme\b", "se"),
+    ]
+    normalized = text
+    for pattern, replacement in replacements:
+        normalized = re.sub(pattern, replacement, normalized, flags=re.I)
+    return normalized
+
 def _to_third_person_text(text):
     def convert_line(line: str) -> str:
         stripped = line.strip()
         if not stripped:
             return line
+        stripped = unicodedata.normalize("NFC", stripped)
         stripped = re.sub(r"^[\u2022\-\–\*\•]+\s*", "", stripped)
         lowered = stripped.lower()
         if lowered.startswith("el contratista"):
@@ -428,7 +515,7 @@ def _to_third_person_text(text):
             flags=re.I,
         )
 
-        if re.match(r"^fuentes? de verificacion\b", stripped, re.I):
+        if re.match(r"^fuentes?\s+de\s+verificaci[oó]n\b", stripped, re.I):
             content = stripped
             content = re.sub(r"\s*:\s*", ": ", content, count=1)
             if content and content[0].isupper():
@@ -437,8 +524,16 @@ def _to_third_person_text(text):
 
         for pattern, replacement in passive_map:
             stripped = re.sub(pattern, replacement, stripped, flags=re.I)
+
+        before_verbs = stripped
         for pattern, replacement in verb_map:
             stripped = re.sub(pattern, replacement, stripped, flags=re.I)
+
+        if stripped == before_verbs:
+            stripped = _convert_first_person_fallback(stripped)
+
+        stripped = _normalize_first_person_pronouns(stripped)
+
         if stripped.lower().startswith("durante "):
             stripped = stripped[0].lower() + stripped[1:]
         return f"El contratista {stripped}"
