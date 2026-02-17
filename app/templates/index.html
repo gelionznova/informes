@@ -38,11 +38,73 @@
       {# Supervisor Review Section #} {% if user and user.role == "supervisor"
       %}
       <section class="supervisor-review">
-        <h2>Revisión de Informes</h2>
-        <div class="supervisor-informes-list">
-          <div id="supervisor-review-section" style="display: none">
-            <h2>Revisión de Informes</h2>
-            <div class="supervisor-table-container">
+        <div id="supervisor-review-section" style="display: none">
+          <div class="supervisor-heading">
+            <h2>Panel de Supervisión</h2>
+            <p>
+              Selecciona un informe en el menú lateral para revisar y decidir.
+            </p>
+          </div>
+          <div class="supervisor-topbar">
+            <div class="supervisor-breadcrumb">
+              <span>Inicio</span>
+              <span aria-hidden="true">/</span>
+              <strong>Panel de Supervisión</strong>
+            </div>
+            <div class="supervisor-topbar-actions">
+              <span id="supervisor-last-sync" class="supervisor-sync-pill"
+                >Actualizando...</span
+              >
+              <button
+                type="button"
+                class="secondary"
+                id="supervisor-refresh-btn"
+              >
+                Actualizar panel
+              </button>
+            </div>
+          </div>
+          <div class="supervisor-layout">
+            <aside class="supervisor-sidebar">
+              <nav
+                class="supervisor-side-nav"
+                aria-label="Navegación supervisor"
+              >
+                <button
+                  type="button"
+                  class="supervisor-side-link is-active"
+                  data-status=""
+                >
+                  <span class="supervisor-side-icon" aria-hidden="true">▦</span>
+                  <span>Informes</span>
+                </button>
+                <button
+                  type="button"
+                  class="supervisor-side-link"
+                  data-status="pendiente"
+                >
+                  <span class="supervisor-side-icon" aria-hidden="true"
+                    >⏳</span
+                  >
+                  <span>Pendientes</span>
+                </button>
+                <button
+                  type="button"
+                  class="supervisor-side-link"
+                  data-status="aprobado"
+                >
+                  <span class="supervisor-side-icon" aria-hidden="true">✓</span>
+                  <span>Aprobados</span>
+                </button>
+                <button
+                  type="button"
+                  class="supervisor-side-link"
+                  data-status="rechazado"
+                >
+                  <span class="supervisor-side-icon" aria-hidden="true">✕</span>
+                  <span>Rechazados</span>
+                </button>
+              </nav>
               <div class="supervisor-filters">
                 <input
                   type="text"
@@ -58,85 +120,94 @@
                 </select>
                 <button id="btn-filter-reports">Filtrar</button>
               </div>
-              <table id="supervisor-reports-table">
-                <thead>
-                  <tr>
-                    <th>Contratista</th>
-                    <th>Periodo</th>
-                    <th>Estado</th>
-                    <th>Descargar</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- JS: Llenar con informes -->
-                </tbody>
-              </table>
-            </div>
-            <div id="supervisor-review-panel" style="display: none">
-              <h3>Detalle del Informe</h3>
-              <div id="supervisor-activities-list">
-                <!-- JS: Llenar con actividades -->
+              <div id="supervisor-reports-menu" class="supervisor-reports-menu">
+                <!-- JS: Llenar con informes -->
               </div>
-              <div class="supervisor-global-controls">
-                <label for="supervisor-global-observation"
-                  >Observación global:</label
-                >
-                <textarea
-                  id="supervisor-global-observation"
-                  rows="2"
-                ></textarea>
-                <div class="supervisor-global-actions">
-                  <button id="supervisor-approve-report">
-                    Aprobar informe
-                  </button>
-                  <button id="supervisor-reject-report">
-                    Rechazar informe
-                  </button>
-                  <button id="supervisor-save-draft">
-                    Guardar revisión parcial
-                  </button>
+            </aside>
+            <div class="supervisor-content">
+              <div class="supervisor-stats" aria-live="polite">
+                <article class="supervisor-stat-card">
+                  <span>Total</span>
+                  <strong id="supervisor-stat-total">0</strong>
+                </article>
+                <article class="supervisor-stat-card is-pending">
+                  <span>Pendientes</span>
+                  <strong id="supervisor-stat-pending">0</strong>
+                </article>
+                <article class="supervisor-stat-card is-approved">
+                  <span>Aprobados</span>
+                  <strong id="supervisor-stat-approved">0</strong>
+                </article>
+                <article class="supervisor-stat-card is-rejected">
+                  <span>Rechazados</span>
+                  <strong id="supervisor-stat-rejected">0</strong>
+                </article>
+              </div>
+              <div id="supervisor-empty-state" class="supervisor-empty-state">
+                Selecciona un informe para visualizar el detalle de actividades.
+              </div>
+              <div id="supervisor-review-panel" style="display: none">
+                <h3>Detalle del Informe</h3>
+                <div class="supervisor-selected-summary">
+                  <div class="supervisor-selected-head">
+                    <strong id="supervisor-selected-title">Informe</strong>
+                    <span id="supervisor-selected-meta"
+                      >Selecciona un informe para ver sus datos.</span
+                    >
+                  </div>
+                  <div class="supervisor-detail-grid">
+                    <div class="supervisor-detail-item">
+                      <span>Contratista</span>
+                      <strong id="supervisor-detail-contractor">-</strong>
+                    </div>
+                    <div class="supervisor-detail-item">
+                      <span>No. Contrato</span>
+                      <strong id="supervisor-detail-contract">-</strong>
+                    </div>
+                    <div
+                      class="supervisor-detail-item supervisor-detail-item--full"
+                    >
+                      <span>Objeto contractual</span>
+                      <p id="supervisor-detail-object">
+                        Sin información registrada.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div id="supervisor-activities-list">
+                  <!-- JS: Llenar con actividades -->
+                </div>
+                <div class="supervisor-global-controls">
+                  <label for="supervisor-global-observation"
+                    >Observación global:</label
+                  >
+                  <textarea
+                    id="supervisor-global-observation"
+                    rows="2"
+                  ></textarea>
+                  <div class="supervisor-global-actions">
+                    <button id="supervisor-approve-report">
+                      Aprobar informe
+                    </button>
+                    <button id="supervisor-reject-report">
+                      Rechazar informe
+                    </button>
+                    <button id="supervisor-save-draft">
+                      Guardar revisión parcial
+                    </button>
+                  </div>
+                </div>
+                <div id="supervisor-review-history">
+                  <h4>Historial de revisiones</h4>
+                  <ul id="supervisor-history-list">
+                    <!-- JS: Llenar con historial -->
+                  </ul>
+                </div>
+                <div id="supervisor-notification" style="display: none">
+                  <span>Notificación enviada al contratista.</span>
                 </div>
               </div>
-              <div id="supervisor-review-history">
-                <h4>Historial de revisiones</h4>
-                <ul id="supervisor-history-list">
-                  <!-- JS: Llenar con historial -->
-                </ul>
-              </div>
-              <div id="supervisor-notification" style="display: none">
-                <span>Notificación enviada al contratista.</span>
-              </div>
             </div>
-          </div>
-        </div>
-        <div
-          id="supervisorPanel"
-          class="supervisor-panel"
-          style="display: none"
-        >
-          <h3>Revisión de Actividades y Evidencias</h3>
-          <div id="supervisorPanelContent">
-            <!-- Aquí se cargará dinámicamente el contenido del informe seleccionado -->
-          </div>
-          <div class="supervisor-panel-actions">
-            <button type="button" class="primary" id="aprobarInformeBtn">
-              Aprobar informe
-            </button>
-            <button type="button" class="danger" id="rechazarInformeBtn">
-              Rechazar informe
-            </button>
-            <textarea
-              id="observacionesSupervisor"
-              placeholder="Observaciones generales (opcional)"
-            ></textarea>
-            <button
-              type="button"
-              class="secondary"
-              onclick="closeSupervisorPanel()"
-            >
-              Cerrar
-            </button>
           </div>
         </div>
       </section>
@@ -181,12 +252,21 @@
                 <select name="supervisor" required>
                   <option value="">Selecciona</option>
                   {% for sup in supervisors %}
-                  <option value="{{ sup.first_name }} {{ sup.last_name }}">
+                  <option
+                    value="{{ sup.first_name }} {{ sup.last_name }}"
+                    data-doc-number="{{ sup.doc_number }}"
+                  >
                     {{ sup.first_name }} {{ sup.last_name }}
                   </option>
                   {% endfor %}
                 </select>
               </label>
+              <label
+                >CC supervisor<input
+                  name="supervisor_cc"
+                  readonly
+                  placeholder="Se completa al seleccionar supervisor"
+              /></label>
               <label>CC<input name="cc" required /></label>
               <label
                 >Ciudad de expedicion<input name="ciudad_expedicion" required
@@ -929,6 +1009,34 @@
         });
       });
 
+      const getHistoryReviewStatus = (item) => {
+        const review =
+          item && item.data && typeof item.data === "object"
+            ? item.data.supervisor_review
+            : null;
+        const status =
+          review && typeof review === "object"
+            ? String(review.status || "").toLowerCase()
+            : "";
+
+        if (status === "aprobado") {
+          return {
+            key: "aprobado",
+            label: "Aprobado por supervisor",
+          };
+        }
+        if (status === "rechazado") {
+          return {
+            key: "rechazado",
+            label: "Requiere ajustes",
+          };
+        }
+        return {
+          key: "pendiente",
+          label: "Pendiente por revisar",
+        };
+      };
+
       const renderHistory = (items) => {
         historyList.innerHTML = "";
         if (!items.length) {
@@ -956,6 +1064,16 @@
           const meta = document.createElement("div");
           meta.className = "history-meta";
           meta.textContent = item.created_at;
+
+          if (userRole === "contratista") {
+            const reviewStatus = getHistoryReviewStatus(item);
+            const badge = document.createElement("span");
+            badge.className = `history-status-badge is-${reviewStatus.key}`;
+            badge.textContent = reviewStatus.label;
+            meta.appendChild(document.createTextNode(" · "));
+            meta.appendChild(badge);
+          }
+
           const actions = document.createElement("div");
           actions.className = "history-actions";
           const loadButton = document.createElement("button");
@@ -1150,6 +1268,12 @@
       const actasSubtotalField = document.querySelector(
         "input[name='actas_subtotal']",
       );
+      const supervisorSelect = document.querySelector(
+        "select[name='supervisor']",
+      );
+      const supervisorCcField = document.querySelector(
+        "input[name='supervisor_cc']",
+      );
 
       const autosaveKey = `draft_${tabId}`;
       const autosaveIgnoreNames = new Set([
@@ -1307,6 +1431,30 @@
           daySelect.value = currentValue;
         }
       };
+
+      const syncSupervisorCc = (overwrite = true) => {
+        if (!supervisorSelect || !supervisorCcField) {
+          return;
+        }
+        const selectedOption =
+          supervisorSelect.options[supervisorSelect.selectedIndex];
+        const docNumber = selectedOption
+          ? (selectedOption.dataset.docNumber || "").trim()
+          : "";
+        if (!overwrite && supervisorCcField.value.trim()) {
+          return;
+        }
+        supervisorCcField.value = docNumber;
+        updateFieldState(supervisorCcField);
+      };
+
+      if (supervisorSelect) {
+        supervisorSelect.addEventListener("change", () => {
+          syncSupervisorCc(true);
+          scheduleAutosave();
+          updateSubmitState();
+        });
+      }
 
       const updateSubmitState = () => {
         const requiredFields = Array.from(
@@ -1611,6 +1759,7 @@
       fillMeses(fechaExpMes);
       fillAnios(plazoAnio);
       fillAnios(fechaExpAnio);
+      syncSupervisorCc(false);
       updateDias(plazoDia, plazoMes, plazoAnio);
       updateDias(fechaExpDia, fechaExpMes, fechaExpAnio);
       plazoMes.addEventListener("change", () =>
@@ -1707,6 +1856,10 @@
           }
           setFieldValue(key, data[key]);
         });
+
+        if (!data.supervisor_cc) {
+          syncSupervisorCc(false);
+        }
 
         [
           "fecha_contrato",
@@ -1860,6 +2013,7 @@
           return;
         }
         const saveDirHandle = await pickSaveDirectory();
+        syncSupervisorCc(true);
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
         dateFieldNames.forEach((name) => {
@@ -2012,171 +2166,743 @@
     <script>
       // SUPERVISOR REVIEW LOGIC (JS)
       if (userRole === "supervisor") {
-        // --- Cargar informes ---
-        async function fetchSupervisorReports() {
-          const res = await fetch("/api/supervisor/reports");
-          const json = await res.json();
-          return json.ok ? json.reports : [];
+        const supervisorReportsMenu = document.getElementById(
+          "supervisor-reports-menu",
+        );
+        const supervisorReviewPanel = document.getElementById(
+          "supervisor-review-panel",
+        );
+        const supervisorEmptyState = document.getElementById(
+          "supervisor-empty-state",
+        );
+        const supervisorActivitiesList = document.getElementById(
+          "supervisor-activities-list",
+        );
+        const supervisorHistoryList = document.getElementById(
+          "supervisor-history-list",
+        );
+        const supervisorNotification = document.getElementById(
+          "supervisor-notification",
+        );
+        const supervisorGlobalObservation = document.getElementById(
+          "supervisor-global-observation",
+        );
+        const approveButton = document.getElementById(
+          "supervisor-approve-report",
+        );
+        const rejectButton = document.getElementById(
+          "supervisor-reject-report",
+        );
+        const draftButton = document.getElementById("supervisor-save-draft");
+        const filterContractor = document.getElementById("filter-contractor");
+        const filterPeriod = document.getElementById("filter-period");
+        const filterStatus = document.getElementById("filter-status");
+        const supervisorRefreshButton = document.getElementById(
+          "supervisor-refresh-btn",
+        );
+        const supervisorLastSync = document.getElementById(
+          "supervisor-last-sync",
+        );
+        const supervisorSideLinks = Array.from(
+          document.querySelectorAll(".supervisor-side-link"),
+        );
+        const supervisorStatTotal = document.getElementById(
+          "supervisor-stat-total",
+        );
+        const supervisorStatPending = document.getElementById(
+          "supervisor-stat-pending",
+        );
+        const supervisorStatApproved = document.getElementById(
+          "supervisor-stat-approved",
+        );
+        const supervisorStatRejected = document.getElementById(
+          "supervisor-stat-rejected",
+        );
+        const supervisorSelectedTitle = document.getElementById(
+          "supervisor-selected-title",
+        );
+        const supervisorSelectedMeta = document.getElementById(
+          "supervisor-selected-meta",
+        );
+        const supervisorDetailContractor = document.getElementById(
+          "supervisor-detail-contractor",
+        );
+        const supervisorDetailContract = document.getElementById(
+          "supervisor-detail-contract",
+        );
+        const supervisorDetailObject = document.getElementById(
+          "supervisor-detail-object",
+        );
+        let currentSupervisorReportId = null;
+        let supervisorReportsCache = [];
+
+        function normalizeReviewStatus(status) {
+          if (status === "aprobado" || status === "rechazado") {
+            return status;
+          }
+          return "pendiente";
         }
 
-        async function fetchSupervisorReportDetail(reportId) {
-          const res = await fetch(`/api/supervisor/report/${reportId}`);
-          const json = await res.json();
-          return json.ok ? json : null;
+        function updateSupervisorStats(reports) {
+          if (
+            !supervisorStatTotal ||
+            !supervisorStatPending ||
+            !supervisorStatApproved ||
+            !supervisorStatRejected
+          ) {
+            return;
+          }
+          const total = reports.length;
+          const pending = reports.filter(
+            (item) => normalizeReviewStatus(item.status) === "pendiente",
+          ).length;
+          const approved = reports.filter(
+            (item) => normalizeReviewStatus(item.status) === "aprobado",
+          ).length;
+          const rejected = reports.filter(
+            (item) => normalizeReviewStatus(item.status) === "rechazado",
+          ).length;
+
+          supervisorStatTotal.textContent = String(total);
+          supervisorStatPending.textContent = String(pending);
+          supervisorStatApproved.textContent = String(approved);
+          supervisorStatRejected.textContent = String(rejected);
         }
 
-        async function sendSupervisorReview(reportId, payload) {
-          const res = await fetch(`/api/supervisor/report/${reportId}/review`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const json = await res.json();
-          return json.ok;
-        }
-
-        // --- Render tabla de informes ---
-        async function renderSupervisorReportsTable() {
-          const tbody = document.querySelector(
-            "#supervisor-reports-table tbody",
-          );
-          tbody.innerHTML = "";
-          const reports = await fetchSupervisorReports();
-          let filtered = reports.filter((r) => {
-            const contractor = document
-              .getElementById("filter-contractor")
-              .value.toLowerCase();
-            const period = document.getElementById("filter-period").value;
-            const status = document.getElementById("filter-status").value;
-            return (
-              (!contractor ||
-                r.contractor.toLowerCase().includes(contractor)) &&
-              (!period || r.period === period) &&
-              (!status || r.status === status)
+        function syncSupervisorSideLinks() {
+          supervisorSideLinks.forEach((button) => {
+            button.classList.toggle(
+              "is-active",
+              (button.dataset.status || "") === (filterStatus.value || ""),
             );
           });
-          for (const report of filtered) {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-            <td>${report.contractor}</td>
-            <td>${report.period}</td>
-            <td>${capitalize(report.status)}</td>
-            <td><a href="${report.docUrl}" target="_blank">Descargar</a></td>
-            <td><button onclick="openSupervisorReviewPanel(${report.id})">Revisar</button></td>
-          `;
-            tbody.appendChild(tr);
+        }
+
+        function updateSupervisorSelectedSummary(reportId) {
+          if (!supervisorSelectedTitle || !supervisorSelectedMeta) {
+            return;
           }
+          const selected = supervisorReportsCache.find(
+            (item) => Number(item.id) === Number(reportId),
+          );
+          if (!selected) {
+            supervisorSelectedTitle.textContent = "Informe";
+            supervisorSelectedMeta.textContent =
+              "Selecciona un informe para ver sus datos.";
+            return;
+          }
+          supervisorSelectedTitle.textContent =
+            selected.contractor || "Sin contratista";
+          supervisorSelectedMeta.textContent = `Periodo: ${
+            selected.period || "Sin periodo"
+          } · Estado: ${capitalize(normalizeReviewStatus(selected.status))}`;
+
+          if (supervisorDetailContractor) {
+            supervisorDetailContractor.textContent =
+              selected.contractor || "Sin contratista";
+          }
+          if (supervisorDetailContract) {
+            supervisorDetailContract.textContent = "Sin número";
+          }
+          if (supervisorDetailObject) {
+            supervisorDetailObject.textContent = "Sin información registrada.";
+          }
+        }
+
+        function renderSupervisorDetailSummary(detail) {
+          const summary =
+            detail && typeof detail.summary === "object" ? detail.summary : {};
+          const contractor = summary.contratista || "Sin contratista";
+          const contractNo = summary.contrato_no || "Sin número";
+          const objectText =
+            summary.objeto_contractual || "Sin información registrada.";
+          const period = summary.periodo || "Sin periodo";
+          const status = capitalize(normalizeReviewStatus(detail.status || ""));
+
+          if (supervisorSelectedTitle) {
+            supervisorSelectedTitle.textContent = contractor;
+          }
+          if (supervisorSelectedMeta) {
+            supervisorSelectedMeta.textContent = `Contrato ${contractNo} · Periodo ${period} · Estado: ${status || "Pendiente"}`;
+          }
+          if (supervisorDetailContractor) {
+            supervisorDetailContractor.textContent = contractor;
+          }
+          if (supervisorDetailContract) {
+            supervisorDetailContract.textContent = contractNo;
+          }
+          if (supervisorDetailObject) {
+            supervisorDetailObject.textContent = objectText;
+          }
+        }
+
+        function updateSupervisorLastSync() {
+          if (!supervisorLastSync) {
+            return;
+          }
+          const now = new Date();
+          supervisorLastSync.textContent = `Sincronizado ${now.toLocaleTimeString(
+            "es-CO",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+            },
+          )}`;
+        }
+
+        function updateSupervisorActiveItem() {
+          if (!supervisorReportsMenu) {
+            return;
+          }
+          supervisorReportsMenu
+            .querySelectorAll(".supervisor-report-item")
+            .forEach((item) => {
+              const button = item.querySelector(".supervisor-open-review");
+              const reportId = Number(
+                (button && button.dataset.reportId) || "0",
+              );
+              item.classList.toggle(
+                "is-active",
+                reportId === currentSupervisorReportId,
+              );
+            });
         }
 
         function capitalize(str) {
+          if (!str) return "";
           return str.charAt(0).toUpperCase() + str.slice(1);
         }
 
-        // --- Abrir panel de revisión ---
-        async function openSupervisorReviewPanel(reportId) {
-          document.getElementById("supervisor-review-panel").style.display = "";
-          const detail = await fetchSupervisorReportDetail(reportId);
-          renderSupervisorActivities(detail.actividades);
-          renderSupervisorHistory(detail.history);
-          document.getElementById("supervisor-approve-report").onclick = () =>
-            approveReport(reportId);
-          document.getElementById("supervisor-reject-report").onclick = () =>
-            rejectReport(reportId);
-          document.getElementById("supervisor-save-draft").onclick = () =>
-            saveDraft(reportId);
-          document.getElementById("supervisor-global-observation").value =
-            detail.observacion_global || "";
-          document.getElementById("supervisor-notification").style.display =
-            "none";
+        function setSupervisorNotification(message, isError = false) {
+          if (!supervisorNotification) {
+            return;
+          }
+          const span = supervisorNotification.querySelector("span");
+          if (span) {
+            span.textContent = message;
+          } else {
+            supervisorNotification.textContent = message;
+          }
+          supervisorNotification.style.display = "";
+          supervisorNotification.style.borderColor = isError
+            ? "#e3b1b1"
+            : "#b9d9cd";
+          supervisorNotification.style.background = isError
+            ? "#fff1f1"
+            : "#e9f6f1";
+          supervisorNotification.style.color = isError ? "#9a2c2c" : "#0f6c5f";
         }
 
-        // --- Render actividades ---
-        function renderSupervisorActivities(activities) {
-          const container = document.getElementById(
-            "supervisor-activities-list",
-          );
-          container.innerHTML = "";
-          for (const act of activities) {
-            const div = document.createElement("div");
-            div.className = "supervisor-activity-row";
-            div.innerHTML = `
-            <span>${act.desc}</span>
-            <select data-act-id="${act.id}" class="supervisor-activity-status">
-              <option value="cumplida" ${act.status === "cumplida" ? "selected" : ""}>Cumplida</option>
-              <option value="no cumplida" ${act.status === "no cumplida" ? "selected" : ""}>No cumplida</option>
-              <option value="pendiente" ${act.status === "pendiente" ? "selected" : ""}>Pendiente</option>
-            </select>
-            <input type="text" data-act-id="${act.id}" class="supervisor-activity-obs" placeholder="Observación" value="${act.obs || ""}">
-          `;
-            container.appendChild(div);
+        function clearSupervisorNotification() {
+          if (supervisorNotification) {
+            supervisorNotification.style.display = "none";
           }
         }
 
-        // --- Render historial ---
+        async function fetchSupervisorReports() {
+          try {
+            const res = await fetch("/api/supervisor/reports");
+            if (!res.ok) {
+              return [];
+            }
+            const json = await res.json();
+            return json.ok ? json.reports || [] : [];
+          } catch (error) {
+            return [];
+          }
+        }
+
+        async function fetchSupervisorReportDetail(reportId) {
+          try {
+            const res = await fetch(`/api/supervisor/report/${reportId}`);
+            if (!res.ok) {
+              return null;
+            }
+            const json = await res.json();
+            return json.ok ? json : null;
+          } catch (error) {
+            return null;
+          }
+        }
+
+        async function sendSupervisorReview(reportId, payload) {
+          try {
+            const res = await fetch(
+              `/api/supervisor/report/${reportId}/review`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              },
+            );
+            const json = await res.json();
+            return { ok: Boolean(json.ok), error: json.error || null };
+          } catch (error) {
+            return { ok: false, error: "network_error" };
+          }
+        }
+
+        function renderSupervisorActivities(activities) {
+          supervisorActivitiesList.innerHTML = "";
+          if (!Array.isArray(activities) || !activities.length) {
+            const empty = document.createElement("div");
+            empty.className = "history-empty";
+            empty.textContent = "No hay actividades para revisar.";
+            supervisorActivitiesList.appendChild(empty);
+            return;
+          }
+
+          for (const act of activities) {
+            const row = document.createElement("article");
+            row.className = "supervisor-activity-row";
+            row.dataset.activityId = String(act.id || "");
+
+            const content = document.createElement("div");
+            content.className = "supervisor-activity-content";
+
+            const contractSection = document.createElement("section");
+            contractSection.className = "supervisor-activity-section";
+            const contractTitle = document.createElement("h5");
+            contractTitle.textContent = "Actividad del contrato";
+            const contractText = document.createElement("p");
+            contractText.textContent =
+              act.contract_activity || act.desc || "Sin información";
+            contractSection.appendChild(contractTitle);
+            contractSection.appendChild(contractText);
+
+            const executedSection = document.createElement("section");
+            executedSection.className = "supervisor-activity-section";
+            const executedTitle = document.createElement("h5");
+            executedTitle.textContent = "Actividad ejecutada";
+            const executedText = document.createElement("p");
+            executedText.textContent =
+              act.executed_activity || "Sin actividad ejecutada registrada.";
+            executedSection.appendChild(executedTitle);
+            executedSection.appendChild(executedText);
+
+            content.appendChild(contractSection);
+            content.appendChild(executedSection);
+
+            const evidenceSection = document.createElement("section");
+            evidenceSection.className = "supervisor-evidence-section";
+            const evidenceTitle = document.createElement("h5");
+            evidenceTitle.textContent = "Evidencia fotográfica";
+            evidenceSection.appendChild(evidenceTitle);
+
+            const groups = Array.isArray(act.evidence_groups)
+              ? act.evidence_groups
+              : [];
+            if (!groups.length) {
+              const emptyEvidence = document.createElement("p");
+              emptyEvidence.className = "supervisor-evidence-empty";
+              emptyEvidence.textContent =
+                "Sin evidencias fotográficas registradas.";
+              evidenceSection.appendChild(emptyEvidence);
+            } else {
+              const groupsWrap = document.createElement("div");
+              groupsWrap.className = "supervisor-evidence-groups";
+
+              groups.forEach((group, groupIndex) => {
+                const groupCard = document.createElement("div");
+                groupCard.className = "supervisor-evidence-group";
+
+                const groupMeta = document.createElement("div");
+                groupMeta.className = "supervisor-evidence-meta";
+
+                const groupLabel = document.createElement("strong");
+                groupLabel.textContent = `Grupo ${groupIndex + 1}`;
+                groupMeta.appendChild(groupLabel);
+
+                if (group && group.date) {
+                  const groupDate = document.createElement("span");
+                  groupDate.textContent = `Fecha: ${group.date}`;
+                  groupMeta.appendChild(groupDate);
+                }
+
+                if (group && group.description) {
+                  const groupDesc = document.createElement("p");
+                  groupDesc.textContent = group.description;
+                  groupMeta.appendChild(groupDesc);
+                }
+
+                groupCard.appendChild(groupMeta);
+
+                const photos = Array.isArray(group && group.photos)
+                  ? group.photos
+                  : [];
+                if (photos.length) {
+                  const photosGrid = document.createElement("div");
+                  photosGrid.className = "supervisor-evidence-photos";
+                  photos.forEach((photo) => {
+                    if (!photo || !photo.url) {
+                      return;
+                    }
+                    const image = document.createElement("img");
+                    image.src = photo.url;
+                    image.alt = photo.name || "Evidencia";
+                    photosGrid.appendChild(image);
+                  });
+                  groupCard.appendChild(photosGrid);
+                }
+
+                groupsWrap.appendChild(groupCard);
+              });
+
+              evidenceSection.appendChild(groupsWrap);
+            }
+
+            const select = document.createElement("select");
+            select.className = "supervisor-activity-status";
+            select.dataset.actId = String(act.id || "");
+
+            ["cumplida", "no cumplida", "pendiente"].forEach((status) => {
+              const option = document.createElement("option");
+              option.value = status;
+              option.textContent = capitalize(status);
+              if (act.status === status) {
+                option.selected = true;
+              }
+              select.appendChild(option);
+            });
+
+            const normalizedStatus = String(act.status || "")
+              .trim()
+              .toLowerCase();
+            if (normalizedStatus !== "cumplida") {
+              row.classList.add("is-not-completed");
+            }
+            select.addEventListener("change", () => {
+              const nextStatus = String(select.value || "")
+                .trim()
+                .toLowerCase();
+              row.classList.toggle(
+                "is-not-completed",
+                nextStatus !== "cumplida",
+              );
+              if (nextStatus === "cumplida") {
+                row.classList.remove("is-approval-warning");
+              }
+            });
+
+            const obs = document.createElement("input");
+            obs.type = "text";
+            obs.className = "supervisor-activity-obs";
+            obs.dataset.actId = String(act.id || "");
+            obs.placeholder = "Observación";
+            obs.value = act.obs || "";
+
+            const controls = document.createElement("div");
+            controls.className = "supervisor-review-controls";
+            controls.appendChild(select);
+            controls.appendChild(obs);
+
+            row.appendChild(content);
+            row.appendChild(evidenceSection);
+            row.appendChild(controls);
+            supervisorActivitiesList.appendChild(row);
+          }
+        }
+
         function renderSupervisorHistory(history) {
-          const ul = document.getElementById("supervisor-history-list");
-          ul.innerHTML = "";
+          supervisorHistoryList.innerHTML = "";
+          if (!Array.isArray(history) || !history.length) {
+            const li = document.createElement("li");
+            li.textContent = "Sin historial de revisiones.";
+            supervisorHistoryList.appendChild(li);
+            return;
+          }
           for (const h of history) {
             const li = document.createElement("li");
             li.textContent = `${h.date}: ${h.action} por ${h.by}`;
-            ul.appendChild(li);
+            supervisorHistoryList.appendChild(li);
           }
         }
 
-        // --- Aprobar, rechazar, guardar borrador ---
-        async function approveReport(reportId) {
-          await submitReview(reportId, "aprobado");
-          alert("Informe aprobado. Se notificará al contratista.");
-          document.getElementById("supervisor-notification").style.display = "";
-        }
-        async function rejectReport(reportId) {
-          await submitReview(reportId, "rechazado");
-          alert("Informe rechazado. Se notificará al contratista.");
-          document.getElementById("supervisor-notification").style.display = "";
-        }
-        async function saveDraftSupervisor(reportId) {
-          await submitReview(reportId, "pendiente");
-          alert("Revisión parcial guardada.");
+        async function openSupervisorReviewPanel(reportId) {
+          currentSupervisorReportId = reportId;
+          supervisorReviewPanel.style.display = "";
+          if (supervisorEmptyState) {
+            supervisorEmptyState.style.display = "none";
+          }
+          updateSupervisorSelectedSummary(reportId);
+          updateSupervisorActiveItem();
+          clearSupervisorNotification();
+
+          const detail = await fetchSupervisorReportDetail(reportId);
+          if (!detail) {
+            setSupervisorNotification(
+              "No se pudo cargar el detalle del informe.",
+              true,
+            );
+            supervisorActivitiesList.innerHTML = "";
+            supervisorHistoryList.innerHTML = "";
+            return;
+          }
+
+          renderSupervisorActivities(detail.actividades || []);
+          renderSupervisorDetailSummary(detail);
+          renderSupervisorHistory(detail.history || []);
+          supervisorGlobalObservation.value = detail.observacion_global || "";
         }
 
-        async function submitReview(reportId, status) {
-          const actividades = Array.from(
+        function collectSupervisorActivities() {
+          return Array.from(
             document.querySelectorAll(".supervisor-activity-row"),
           ).map((row) => {
-            const id = row.querySelector(".supervisor-activity-status").dataset
-              .actId;
-            const estado = row.querySelector(
+            const statusField = row.querySelector(
               ".supervisor-activity-status",
-            ).value;
-            const obs = row.querySelector(".supervisor-activity-obs").value;
-            return { id, status: estado, obs };
-          });
-          const observacion_global = document.getElementById(
-            "supervisor-global-observation",
-          ).value;
-          await sendSupervisorReview(reportId, {
-            actividades,
-            status,
-            observacion_global,
+            );
+            const obsField = row.querySelector(".supervisor-activity-obs");
+            return {
+              id: statusField ? statusField.dataset.actId : "",
+              status: statusField ? statusField.value : "pendiente",
+              obs: obsField ? obsField.value : "",
+            };
           });
         }
 
-        // --- Filtros ---
-        document.getElementById("btn-filter-reports").onclick =
-          renderSupervisorReportsTable;
-        document.getElementById("filter-contractor").oninput =
-          renderSupervisorReportsTable;
-        document.getElementById("filter-period").onchange =
-          renderSupervisorReportsTable;
-        document.getElementById("filter-status").onchange =
-          renderSupervisorReportsTable;
+        function getPendingActivitiesForApproval(activities) {
+          if (!Array.isArray(activities)) {
+            return [];
+          }
+          return activities.filter((activity) => {
+            const activityStatus = String(
+              activity && activity.status ? activity.status : "",
+            )
+              .trim()
+              .toLowerCase();
+            return activityStatus !== "cumplida";
+          });
+        }
 
-        // --- Inicialización ---
+        function clearSupervisorApprovalHighlights() {
+          document
+            .querySelectorAll(".supervisor-activity-row.is-approval-warning")
+            .forEach((row) => row.classList.remove("is-approval-warning"));
+        }
+
+        function highlightPendingActivitiesForApproval(pendingActivities) {
+          clearSupervisorApprovalHighlights();
+          const pendingIds = new Set(
+            pendingActivities
+              .map((activity) =>
+                String(activity && activity.id ? activity.id : "").trim(),
+              )
+              .filter(Boolean),
+          );
+
+          let firstMatch = null;
+          document
+            .querySelectorAll(".supervisor-activity-row")
+            .forEach((row) => {
+              const rowId = String(row.dataset.activityId || "").trim();
+              const shouldHighlight = rowId && pendingIds.has(rowId);
+              row.classList.toggle("is-approval-warning", shouldHighlight);
+              if (shouldHighlight && !firstMatch) {
+                firstMatch = row;
+              }
+            });
+
+          if (firstMatch) {
+            firstMatch.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+
+        async function submitReview(status) {
+          if (!currentSupervisorReportId) {
+            setSupervisorNotification(
+              "Selecciona un informe para revisar.",
+              true,
+            );
+            return;
+          }
+
+          const activitiesPayload = collectSupervisorActivities();
+          if (status === "aprobado") {
+            const pendingActivities =
+              getPendingActivitiesForApproval(activitiesPayload);
+            if (pendingActivities.length) {
+              highlightPendingActivitiesForApproval(pendingActivities);
+              openModal(
+                "No se puede aprobar el informe",
+                `<p>Para aprobar el informe, <strong>todas</strong> las actividades deben estar marcadas como <strong>Cumplida</strong>.</p><p>Aún hay ${pendingActivities.length} actividad(es) sin cumplir esta condición.</p>`,
+              );
+              setSupervisorNotification(
+                "No se puede aprobar: marca todas las actividades como cumplidas.",
+                true,
+              );
+              return;
+            }
+            clearSupervisorApprovalHighlights();
+          }
+
+          const response = await sendSupervisorReview(
+            currentSupervisorReportId,
+            {
+              actividades: activitiesPayload,
+              status,
+              observacion_global: supervisorGlobalObservation.value,
+            },
+          );
+
+          if (!response.ok) {
+            if (
+              status === "aprobado" &&
+              response.error === "activities_not_completed"
+            ) {
+              openModal(
+                "No se puede aprobar el informe",
+                "<p>El sistema validó que aún existen actividades que no están en estado <strong>Cumplida</strong>.</p><p>Actualiza todas las actividades y vuelve a intentar.</p>",
+              );
+            }
+            setSupervisorNotification("No se pudo guardar la revisión.", true);
+            return;
+          }
+
+          if (status === "aprobado") {
+            setSupervisorNotification(
+              "Informe aprobado. Se notificará al contratista.",
+            );
+          } else if (status === "rechazado") {
+            setSupervisorNotification(
+              "Informe rechazado. Se notificará al contratista.",
+            );
+          } else {
+            setSupervisorNotification("Revisión parcial guardada.");
+          }
+
+          await openSupervisorReviewPanel(currentSupervisorReportId);
+          await renderSupervisorReportsTable();
+        }
+
+        async function renderSupervisorReportsTable() {
+          if (!supervisorReportsMenu) {
+            return;
+          }
+          supervisorReportsMenu.innerHTML = "";
+          const reports = await fetchSupervisorReports();
+          supervisorReportsCache = reports;
+          updateSupervisorStats(reports);
+          syncSupervisorSideLinks();
+          const contractorFilter = (filterContractor.value || "")
+            .trim()
+            .toLowerCase();
+          const periodFilter = filterPeriod.value || "";
+          const statusFilter = filterStatus.value || "";
+
+          const filtered = reports.filter((report) => {
+            const contractor = String(report.contractor || "").toLowerCase();
+            const period = String(report.period || "");
+            const status = String(report.status || "");
+            return (
+              (!contractorFilter || contractor.includes(contractorFilter)) &&
+              (!periodFilter || period === periodFilter) &&
+              (!statusFilter || status === statusFilter)
+            );
+          });
+
+          if (!filtered.length) {
+            const empty = document.createElement("div");
+            empty.className = "supervisor-menu-empty";
+            empty.textContent = "No se encontraron informes con ese filtro.";
+            supervisorReportsMenu.appendChild(empty);
+            return;
+          }
+
+          for (const report of filtered) {
+            const card = document.createElement("div");
+            card.className = "supervisor-report-item";
+
+            const reviewButton = document.createElement("button");
+            reviewButton.type = "button";
+            reviewButton.dataset.reportId = String(report.id);
+            reviewButton.className = "supervisor-open-review";
+
+            const contractor = document.createElement("strong");
+            contractor.className = "supervisor-report-contractor";
+            contractor.textContent = report.contractor || "Sin contratista";
+
+            const meta = document.createElement("span");
+            meta.className = "supervisor-report-period";
+            meta.textContent = `Periodo: ${report.period || "Sin periodo"}`;
+
+            const status = document.createElement("span");
+            status.className = `supervisor-report-status is-${String(
+              report.status || "pendiente",
+            )}`;
+            status.textContent = capitalize(report.status || "pendiente");
+
+            reviewButton.appendChild(contractor);
+            reviewButton.appendChild(meta);
+            reviewButton.appendChild(status);
+
+            const downloadLink = document.createElement("a");
+            downloadLink.href = report.docUrl;
+            downloadLink.target = "_blank";
+            downloadLink.rel = "noopener noreferrer";
+            downloadLink.textContent = "Descargar";
+            downloadLink.className = "supervisor-report-download";
+
+            card.appendChild(reviewButton);
+            card.appendChild(downloadLink);
+            supervisorReportsMenu.appendChild(card);
+          }
+
+          updateSupervisorLastSync();
+          updateSupervisorActiveItem();
+        }
+
+        supervisorReportsMenu.addEventListener("click", (event) => {
+          const button = event.target.closest("button.supervisor-open-review");
+          if (!button) {
+            return;
+          }
+          const reportId = Number(button.dataset.reportId || "0");
+          if (!reportId) {
+            return;
+          }
+          openSupervisorReviewPanel(reportId);
+        });
+
+        approveButton.addEventListener("click", () => submitReview("aprobado"));
+        rejectButton.addEventListener("click", () => submitReview("rechazado"));
+        draftButton.addEventListener("click", () => submitReview("pendiente"));
+
+        document
+          .getElementById("btn-filter-reports")
+          .addEventListener("click", renderSupervisorReportsTable);
+        supervisorSideLinks.forEach((button) => {
+          button.addEventListener("click", () => {
+            filterStatus.value = button.dataset.status || "";
+            syncSupervisorSideLinks();
+            renderSupervisorReportsTable();
+          });
+        });
+        filterContractor.addEventListener(
+          "input",
+          renderSupervisorReportsTable,
+        );
+        filterPeriod.addEventListener("change", renderSupervisorReportsTable);
+        filterStatus.addEventListener("change", () => {
+          syncSupervisorSideLinks();
+          renderSupervisorReportsTable();
+        });
+        if (supervisorRefreshButton) {
+          supervisorRefreshButton.addEventListener(
+            "click",
+            renderSupervisorReportsTable,
+          );
+        }
+
         function showSupervisorSection() {
           document.getElementById("supervisor-review-section").style.display =
             "";
+          if (supervisorEmptyState) {
+            supervisorEmptyState.style.display = "";
+          }
           renderSupervisorReportsTable();
         }
+
         showSupervisorSection();
       }
     </script>

@@ -125,7 +125,12 @@ def list_users_by_role(role_name: str) -> list[dict]:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """
-            SELECT users.id, users.username, users.first_name, users.last_name
+            SELECT
+                users.id,
+                users.username,
+                users.first_name,
+                users.last_name,
+                users.doc_number
             FROM users
             JOIN roles ON roles.id = users.role_id
             WHERE roles.name = ?
@@ -311,6 +316,22 @@ def get_submission(record_id: int) -> dict | None:
         "created_at": row["created_at"],
         "data": data,
     }
+
+def update_submission_data(record_id: int, payload: dict) -> bool:
+    data_json = json.dumps(
+        payload,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE submissions SET data_json = ? WHERE id = ?",
+            (data_json, record_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
 
 def delete_submission(record_id: int) -> bool:
     with sqlite3.connect(DB_PATH) as conn:

@@ -28,6 +28,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from db import (
     init_db,
     save_submission,
+    update_submission_data,
     list_submissions,
     get_submission,
     delete_submission,
@@ -73,6 +74,240 @@ DOC_TYPES = [
     {"value": "pasaporte", "label": "Pasaporte"},
     {"value": "nit", "label": "NIT"},
 ]
+
+ALLOWED_REVIEW_STATUS = {"pendiente", "aprobado", "rechazado"}
+ALLOWED_ACTIVITY_STATUS = {"cumplida", "no cumplida", "pendiente"}
+
+verb_map = [
+    (r"aprob[éeo]\b", "aprobó"),
+    (r"archiv[éeo]\b", "archivó"),
+    (r"asesor[éeo]\b", "asesoró"),
+    (r"capacit[éeo]\b", "capacitó"),
+    (r"certific[éeo]\b", "certificó"),
+    (r"comunic[éeo]\b", "comunicó"),
+    (r"consolid[éeo]\b", "consolidó"),
+    (r"control[éeo]\b", "controló"),
+    (r"correspond[íio]\b", "correspondió"),
+    (r"custodi[éeo]\b", "custodió"),
+    (r"digitaliz[éeo]\b", "digitalizó"),
+    (r"diligenci[éeo]\b", "diligenció"),
+    (r"elimin[éeo]\b", "eliminó"),
+    (r"emit[íio]\b", "emitió"),
+    (r"evalu[éeo]\b", "evaluó"),
+    (r"exped[íio]\b", "expidió"),
+    (r"facilit[éeo]\b", "facilitó"),
+    (r"formaliz[éeo]\b", "formalizó"),
+    (r"inform[éeo]\b", "informó"),
+    (r"inspeccion[éeo]\b", "inspeccionó"),
+    (r"instal[éeo]\b", "instaló"),
+    (r"integr[éeo]\b", "integró"),
+    (r"inventari[éeo]\b", "inventarió"),
+    (r"legaliz[éeo]\b", "legalizó"),
+    (r"manten[íio]\b", "mantuvo"),
+    (r"mejor[éeo]\b", "mejoró"),
+    (r"monitore[éeo]\b", "monitoreó"),
+    (r"notific[éeo]\b", "notificó"),
+    (r"organiz[éeo]\b", "organizó"),
+    (r"planific[éeo]\b", "planificó"),
+    (r"proces[éeo]\b", "procesó"),
+    (r"registr[éeo]\b", "registró"),
+    (r"report[éeo]\b", "reportó"),
+    (r"resolv[íio]\b", "resolvió"),
+    (r"respond[íio]\b", "respondió"),
+    (r"reuni[óo]\b", "reunió"),
+]
+
+passive_map = [
+    (r"\bse realiza\b", "realizó"),
+    (r"\bse realizan\b", "realizó"),
+    (r"\bse realiz[óo]\b", "realizó"),
+    (r"\bse efectu[óo]\b", "efectuó"),
+    (r"\bse efect[uú]a\b", "efectuó"),
+    (r"\bse lleva a cabo\b", "llevó a cabo"),
+    (r"\bse llev[óo] a cabo\b", "llevó a cabo"),
+    (r"\bse necesita\b", "requirió"),
+    (r"\bse requiere\b", "requirió"),
+    (r"\bse solicit[óo]\b", "solicitó"),
+    (r"\bse encuentra\b", "se encontraba"),
+    (r"\bse evidenci[óo]\b", "evidenció"),
+    (r"\bse verifica\b", "verificó"),
+    (r"\bse revisa\b", "revisó"),
+    (r"\bse comunica\b", "comunicó"),
+    (r"\bse inform[óo]\b", "informó"),
+    (r"\bse notifica\b", "notificó"),
+    (r"\bse registr[óo]\b", "registró"),
+    (r"\bse reporta\b", "reportó"),
+    (r"\bse consolida\b", "consolidó"),
+    (r"\bse coordina\b", "coordinó"),
+    (r"\bse capacita\b", "capacitó"),
+    (r"\bse elabora\b", "elaboró"),
+    (r"\bse entrega\b", "entregó"),
+    (r"\bse presenta\b", "presentó"),
+    (r"\bse eval[uú]a\b", "evaluó"),
+    (r"\bse controla\b", "controló"),
+]
+
+def _parse_money(value) -> float:
+    if value is None:
+        return 0.0
+    raw = str(value).strip()
+    if not raw:
+        return 0.0
+    cleaned = re.sub(r"[^0-9,.-]+", "", raw)
+    if not cleaned:
+        return 0.0
+    if "," in cleaned:
+        normalized = cleaned.replace(".", "").replace(",", ".")
+    else:
+        normalized = cleaned.replace(".", "")
+    try:
+        return float(normalized)
+    except ValueError:
+        return 0.0
+
+def _format_currency(value: float) -> str:
+    amount = int(round(float(value)))
+    return f"$ {amount:,}".replace(",", ".")
+
+def _extract_period_key(data: dict) -> str:
+    raw_value = (
+        data.get("periodo_i_a")
+        or data.get("periodo_i_de")
+        or data.get("fecha_presentacion_informe")
+        or ""
+    )
+    raw_value = str(raw_value).strip()
+    if not raw_value:
+        return ""
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", raw_value):
+        return raw_value[:7]
+    match = re.match(r"^\d{1,2}/(\d{1,2})/(\d{2}|\d{4})$", raw_value)
+    if not match:
+        return ""
+    month = int(match.group(1))
+    year = match.group(2)
+    year = f"20{year}" if len(year) == 2 else year
+    return f"{year}-{month:02d}"
+
+def _build_default_review_activities(data: dict) -> list[dict]:
+    items = data.get("obligaciones_directas_items")
+    if not isinstance(items, list):
+        return []
+    result = []
+    for index, item in enumerate(items, start=1):
+        if isinstance(item, dict):
+            contract_activity = str(item.get("actividad_contrato", "")).strip()
+            executed_activity = str(item.get("actividad_ejecutada", "")).strip()
+            evidence_payload = item.get("evidencias") if isinstance(item.get("evidencias"), dict) else {}
+            evidence_images = evidence_payload.get("images") if isinstance(evidence_payload.get("images"), list) else []
+            evidence_groups = evidence_payload.get("groups") if isinstance(evidence_payload.get("groups"), list) else []
+
+            normalized_groups = []
+            total_groups = max(1, (len(evidence_images) + 2) // 3) if evidence_images else 0
+            for group_index in range(total_groups):
+                group_info = (
+                    evidence_groups[group_index]
+                    if group_index < len(evidence_groups)
+                    and isinstance(evidence_groups[group_index], dict)
+                    else {}
+                )
+                chunk = evidence_images[group_index * 3 : (group_index + 1) * 3]
+                photos = []
+                for image in chunk:
+                    if not isinstance(image, dict):
+                        continue
+                    data_url = str(image.get("dataUrl", "")).strip()
+                    if not data_url:
+                        continue
+                    photos.append(
+                        {
+                            "name": str(image.get("name", "Foto")).strip() or "Foto",
+                            "url": data_url,
+                        }
+                    )
+                if photos or group_info.get("description") or group_info.get("date"):
+                    normalized_groups.append(
+                        {
+                            "description": str(group_info.get("description", "")).strip(),
+                            "date": str(group_info.get("date", "")).strip(),
+                            "photos": photos,
+                        }
+                    )
+        else:
+            contract_activity = str(item).strip()
+            executed_activity = ""
+            normalized_groups = []
+
+        desc = contract_activity or executed_activity
+        result.append(
+            {
+                "id": str(index),
+                "desc": desc,
+                "contract_activity": contract_activity,
+                "executed_activity": executed_activity,
+                "evidence_groups": normalized_groups,
+                "status": "pendiente",
+                "obs": "",
+            }
+        )
+    return result
+
+def _merge_review_activities(defaults: list[dict], saved: list[dict]) -> list[dict]:
+    saved_by_id = {}
+    for item in saved:
+        if not isinstance(item, dict):
+            continue
+        act_id = str(item.get("id", "")).strip()
+        if not act_id:
+            continue
+        saved_by_id[act_id] = {
+            "id": act_id,
+            "desc": str(item.get("desc", "")).strip(),
+            "status": str(item.get("status", "pendiente")).strip().lower(),
+            "obs": str(item.get("obs", "")).strip(),
+        }
+
+    merged = []
+    seen = set()
+    for default in defaults:
+        act_id = str(default.get("id", "")).strip()
+        if not act_id:
+            continue
+        seen.add(act_id)
+        saved_item = saved_by_id.get(act_id, {})
+        status = saved_item.get("status", default.get("status", "pendiente"))
+        if status not in ALLOWED_ACTIVITY_STATUS:
+            status = "pendiente"
+        merged.append(
+            {
+                "id": act_id,
+                "desc": saved_item.get("desc") or str(default.get("desc", "")).strip(),
+                "contract_activity": str(default.get("contract_activity", "")).strip(),
+                "executed_activity": str(default.get("executed_activity", "")).strip(),
+                "evidence_groups": default.get("evidence_groups", []) if isinstance(default.get("evidence_groups"), list) else [],
+                "status": status,
+                "obs": saved_item.get("obs", ""),
+            }
+        )
+
+    for act_id, item in saved_by_id.items():
+        if act_id in seen:
+            continue
+        status = item.get("status", "pendiente")
+        if status not in ALLOWED_ACTIVITY_STATUS:
+            status = "pendiente"
+        merged.append(
+            {
+                "id": act_id,
+                "desc": item.get("desc", ""),
+                "contract_activity": "",
+                "executed_activity": "",
+                "evidence_groups": [],
+                "status": status,
+                "obs": item.get("obs", ""),
+            }
+        )
+    return merged
 
 def _get_tab_id() -> str | None:
     return request.headers.get("X-Tab-Id") or request.values.get("tab_id")
@@ -138,6 +373,17 @@ def admin_required(func):
         return func(*args, **kwargs)
     return wrapper
 
+def supervisor_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        user = _current_user()
+        if not user:
+            return jsonify({"ok": False, "error": "auth_required"}), 401
+        if user.get("role") not in {ROLE_SUPERVISOR, ROLE_SUPER_ADMIN}:
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+        return func(*args, **kwargs)
+    return wrapper
+
 def _ensure_default_roles_and_admin() -> None:
     for role_name in (
         ROLE_SUPER_ADMIN,
@@ -160,73 +406,6 @@ def _ensure_default_roles_and_admin() -> None:
                 "cedula_ciudadania",
                 "0000000000",
             )
-        (r"aprob[éeo]\b", "aprobó"),
-        (r"archiv[éeo]\b", "archivó"),
-        (r"asesor[éeo]\b", "asesoró"),
-        (r"capacit[éeo]\b", "capacitó"),
-        (r"certific[éeo]\b", "certificó"),
-        (r"comunic[éeo]\b", "comunicó"),
-        (r"consolid[éeo]\b", "consolidó"),
-        (r"control[éeo]\b", "controló"),
-        (r"correspond[íio]\b", "correspondió"),
-        (r"custodi[éeo]\b", "custodió"),
-        (r"digitaliz[éeo]\b", "digitalizó"),
-        (r"diligenci[éeo]\b", "diligenció"),
-        (r"elimin[éeo]\b", "eliminó"),
-        (r"emit[íio]\b", "emitió"),
-        (r"evalu[éeo]\b", "evaluó"),
-        (r"exped[íio]\b", "expidió"),
-        (r"facilit[éeo]\b", "facilitó"),
-        (r"formaliz[éeo]\b", "formalizó"),
-        (r"inform[éeo]\b", "informó"),
-        (r"inspeccion[éeo]\b", "inspeccionó"),
-        (r"instal[éeo]\b", "instaló"),
-        (r"integr[éeo]\b", "integró"),
-        (r"inventari[éeo]\b", "inventarió"),
-        (r"legaliz[éeo]\b", "legalizó"),
-        (r"manten[íio]\b", "mantuvo"),
-        (r"mejor[éeo]\b", "mejoró"),
-        (r"monitore[éeo]\b", "monitoreó"),
-        (r"notific[éeo]\b", "notificó"),
-        (r"organiz[éeo]\b", "organizó"),
-        (r"planific[éeo]\b", "planificó"),
-        (r"proces[éeo]\b", "procesó"),
-        (r"registr[éeo]\b", "registró"),
-        (r"report[éeo]\b", "reportó"),
-        (r"resolv[íio]\b", "resolvió"),
-        (r"respond[íio]\b", "respondió"),
-        (r"reuni[óo]\b", "reunió"),
-    # Fin de verb_map
-
-    passive_map = [
-        (r"\bse realiza\b", "realizó"),
-        (r"\bse realizan\b", "realizó"),
-        (r"\bse realiz[óo]\b", "realizó"),
-        (r"\bse efectu[óo]\b", "efectuó"),
-        (r"\bse efect[uú]a\b", "efectuó"),
-        (r"\bse lleva a cabo\b", "llevó a cabo"),
-        (r"\bse llev[óo] a cabo\b", "llevó a cabo"),
-        (r"\bse necesita\b", "requirió"),
-        (r"\bse requiere\b", "requirió"),
-        (r"\bse solicit[óo]\b", "solicitó"),
-        (r"\bse encuentra\b", "se encontraba"),
-        (r"\bse evidenci[óo]\b", "evidenció"),
-        (r"\bse verifica\b", "verificó"),
-        (r"\bse revisa\b", "revisó"),
-        (r"\bse comunica\b", "comunicó"),
-        (r"\bse inform[óo]\b", "informó"),
-        (r"\bse notifica\b", "notificó"),
-        (r"\bse registr[óo]\b", "registró"),
-        (r"\bse reporta\b", "reportó"),
-        (r"\bse consolida\b", "consolidó"),
-        (r"\bse coordina\b", "coordinó"),
-        (r"\bse capacita\b", "capacitó"),
-        (r"\bse elabora\b", "elaboró"),
-        (r"\bse entrega\b", "entregó"),
-        (r"\bse presenta\b", "presentó"),
-        (r"\bse eval[uú]a\b", "evaluó"),
-        (r"\bse controla\b", "controló"),
-    ]
 
 def _to_third_person_text(text):
     def convert_line(line: str) -> str:
@@ -264,9 +443,63 @@ def _to_third_person_text(text):
             stripped = stripped[0].lower() + stripped[1:]
         return f"El contratista {stripped}"
 
-    # Asegurarse de que 'text' esté definido como argumento de la función
-    # Ejemplo: def _to_third_person_text(text):
     return "\n".join(convert_line(line) for line in text.splitlines())
+
+def _build_review_action(status: str) -> str:
+    if status == "aprobado":
+        return "Informe aprobado"
+    if status == "rechazado":
+        return "Informe rechazado"
+    return "Revisión parcial guardada"
+
+def _build_supervisor_reports() -> list[dict]:
+    reports = []
+    for item in list_submissions(limit=200):
+        data = item.get("data") or {}
+        review = data.get("supervisor_review") if isinstance(data.get("supervisor_review"), dict) else {}
+        status = str(review.get("status", "pendiente")).lower()
+        if status not in ALLOWED_REVIEW_STATUS:
+            status = "pendiente"
+        reports.append(
+            {
+                "id": item["id"],
+                "contractor": str(data.get("contratista", "")).strip(),
+                "period": _extract_period_key(data),
+                "status": status,
+                "docUrl": url_for("download_file", record_id=item["id"], doc_key="inf_supervision"),
+            }
+        )
+    return reports
+
+def _build_supervisor_detail(record_id: int) -> tuple[dict | None, int]:
+    item = get_submission(record_id)
+    if not item:
+        return {"ok": False, "error": "not_found"}, 404
+    data = item.get("data") or {}
+    review = data.get("supervisor_review") if isinstance(data.get("supervisor_review"), dict) else {}
+    default_activities = _build_default_review_activities(data)
+    saved_activities = review.get("actividades") if isinstance(review.get("actividades"), list) else []
+    activities = _merge_review_activities(default_activities, saved_activities)
+    history = review.get("history") if isinstance(review.get("history"), list) else []
+    summary = {
+        "informe_no": str(data.get("informe_no", "")).strip(),
+        "contratista": str(data.get("contratista", "")).strip(),
+        "contrato_no": str(data.get("contrato_no", "")).strip(),
+        "objeto_contractual": str(data.get("objeto_contractual", "")).strip(),
+        "periodo": _extract_period_key(data),
+    }
+    return (
+        {
+            "ok": True,
+            "id": record_id,
+            "status": review.get("status", "pendiente"),
+            "observacion_global": review.get("observacion_global", ""),
+            "summary": summary,
+            "actividades": activities,
+            "history": history,
+        },
+        200,
+    )
 
 @app.route("/")
 @login_required
@@ -419,6 +652,90 @@ def download_file(record_id: int, doc_key: str):
         as_attachment=True,
         download_name=output_name,
     )
+
+@app.route("/api/supervisor/reports")
+@supervisor_required
+def supervisor_reports():
+    return jsonify({"ok": True, "reports": _build_supervisor_reports()})
+
+@app.route("/api/supervisor/report/<int:record_id>")
+@supervisor_required
+def supervisor_report_detail(record_id: int):
+    payload, status_code = _build_supervisor_detail(record_id)
+    return jsonify(payload), status_code
+
+@app.route("/api/supervisor/report/<int:record_id>/review", methods=["POST"])
+@supervisor_required
+def supervisor_report_review(record_id: int):
+    item = get_submission(record_id)
+    if not item:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    current_data = item.get("data") or {}
+    current_review = current_data.get("supervisor_review") if isinstance(current_data.get("supervisor_review"), dict) else {}
+    current_history = current_review.get("history") if isinstance(current_review.get("history"), list) else []
+
+    payload = request.get_json(force=True) or {}
+    status = str(payload.get("status", "pendiente")).strip().lower()
+    if status not in ALLOWED_REVIEW_STATUS:
+        status = "pendiente"
+
+    incoming_activities = payload.get("actividades")
+    normalized_activities = []
+    if isinstance(incoming_activities, list):
+        for activity in incoming_activities:
+            if not isinstance(activity, dict):
+                continue
+            act_id = str(activity.get("id", "")).strip()
+            if not act_id:
+                continue
+            act_status = str(activity.get("status", "pendiente")).strip().lower()
+            if act_status not in ALLOWED_ACTIVITY_STATUS:
+                act_status = "pendiente"
+            normalized_activities.append(
+                {
+                    "id": act_id,
+                    "desc": str(activity.get("desc", "")).strip(),
+                    "status": act_status,
+                    "obs": str(activity.get("obs", "")).strip(),
+                }
+            )
+
+    if status == "aprobado":
+        if normalized_activities:
+            activities_to_validate = normalized_activities
+        else:
+            default_activities = _build_default_review_activities(current_data)
+            saved_activities = current_review.get("actividades") if isinstance(current_review.get("actividades"), list) else []
+            activities_to_validate = _merge_review_activities(default_activities, saved_activities)
+
+        if any(
+            str(activity.get("status", "")).strip().lower() != "cumplida"
+            for activity in activities_to_validate
+            if isinstance(activity, dict)
+        ):
+            return jsonify({"ok": False, "error": "activities_not_completed"}), 400
+
+    user = _current_user() or {}
+    history_entry = {
+        "date": datetime.utcnow().replace(microsecond=0).isoformat(),
+        "action": _build_review_action(status),
+        "status": status,
+        "by": user.get("username", "supervisor"),
+    }
+    current_history.append(history_entry)
+
+    current_data["supervisor_review"] = {
+        "status": status,
+        "observacion_global": str(payload.get("observacion_global", "")).strip(),
+        "actividades": normalized_activities,
+        "history": current_history,
+    }
+
+    if not update_submission_data(record_id, current_data):
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    return jsonify({"ok": True})
 
 def _render_admin(message: str | None = None, error: str | None = None):
     return render_template(
