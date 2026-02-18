@@ -133,6 +133,7 @@ def list_users_by_role(role_name: str) -> list[dict]:
                 users.username,
                 users.first_name,
                 users.last_name,
+                users.dependency,
                 users.doc_number
             FROM users
             JOIN roles ON roles.id = users.role_id

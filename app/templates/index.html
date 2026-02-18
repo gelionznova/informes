@@ -263,6 +263,7 @@
                   <option
                     value="{{ sup.first_name }} {{ sup.last_name }}"
                     data-doc-number="{{ sup.doc_number }}"
+                    data-dependency="{{ sup.dependency }}"
                   >
                     {{ sup.first_name }} {{ sup.last_name }}
                   </option>
@@ -275,6 +276,7 @@
                   readonly
                   placeholder="Se completa al seleccionar supervisor"
               /></label>
+              <input type="hidden" name="supervisor_dependency" />
               <div class="plazo-group">
                 <div class="group-title">Plazo inicial</div>
                 <div class="plazo-grid">
@@ -1592,6 +1594,9 @@
       const supervisorCcField = document.querySelector(
         "input[name='supervisor_cc']",
       );
+      const supervisorDependencyField = document.querySelector(
+        "input[name='supervisor_dependency']",
+      );
       const valorInicialField = document.querySelector(
         "input[name='valor_inicial']",
       );
@@ -1895,8 +1900,12 @@
         }
       };
 
-      const syncSupervisorCc = (overwrite = true) => {
-        if (!supervisorSelect || !supervisorCcField) {
+      const syncSupervisorMeta = (overwrite = true) => {
+        if (
+          !supervisorSelect ||
+          !supervisorCcField ||
+          !supervisorDependencyField
+        ) {
           return;
         }
         const selectedOption =
@@ -1904,16 +1913,21 @@
         const docNumber = selectedOption
           ? (selectedOption.dataset.docNumber || "").trim()
           : "";
-        if (!overwrite && supervisorCcField.value.trim()) {
-          return;
+        const dependency = selectedOption
+          ? (selectedOption.dataset.dependency || "").trim()
+          : "";
+        if (overwrite || !supervisorCcField.value.trim()) {
+          supervisorCcField.value = docNumber;
+          updateFieldState(supervisorCcField);
         }
-        supervisorCcField.value = docNumber;
-        updateFieldState(supervisorCcField);
+        if (overwrite || !supervisorDependencyField.value.trim()) {
+          supervisorDependencyField.value = dependency;
+        }
       };
 
       if (supervisorSelect) {
         supervisorSelect.addEventListener("change", () => {
-          syncSupervisorCc(true);
+          syncSupervisorMeta(true);
           scheduleAutosave();
           updateSubmitState();
         });
@@ -2248,7 +2262,7 @@
       fillMeses(fechaExpMes);
       fillAnios(plazoAnio);
       fillAnios(fechaExpAnio);
-      syncSupervisorCc(false);
+      syncSupervisorMeta(false);
       updateDias(plazoDia, plazoMes, plazoAnio);
       updateDias(fechaExpDia, fechaExpMes, fechaExpAnio);
       plazoMes.addEventListener("change", () =>
@@ -2392,7 +2406,7 @@
         });
 
         if (!data.supervisor_cc) {
-          syncSupervisorCc(false);
+          syncSupervisorMeta(false);
         }
 
         [
@@ -2566,7 +2580,7 @@
           return;
         }
         const saveDirHandle = await pickSaveDirectory();
-        syncSupervisorCc(true);
+        syncSupervisorMeta(true);
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
         dateFieldNames.forEach((name) => {
