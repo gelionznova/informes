@@ -1412,6 +1412,19 @@
         });
       });
 
+      const getValorActaActual = () => {
+        const rows = Array.from(actasRows.querySelectorAll(".actas-row"));
+        for (let index = rows.length - 1; index >= 0; index -= 1) {
+          const valueInput = rows[index].querySelector(
+            "input[name='acta_parcial_valor_item']",
+          );
+          if (valueInput && valueInput.value.trim()) {
+            return parseMoney(valueInput.value);
+          }
+        }
+        return 0;
+      };
+
       const updateActasSubtotal = () => {
         const rows = actasRows.querySelectorAll(".actas-row");
         const hasValue = Array.from(rows).some((row) => {
@@ -1427,27 +1440,33 @@
           return acc + parseMoney(valueInput.value);
         }, 0);
         actasSubtotalField.value = hasValue ? formatCurrency(total) : "";
-        const valorEjecutadoField = document.querySelector(
-          "input[name='valor_ejecutado']",
-        );
-        if (valorEjecutadoField) {
-          valorEjecutadoField.value = hasValue ? formatCurrency(total) : "";
-          updateFieldState(valorEjecutadoField);
-        }
         syncFinancierosDesdeSubtotal();
       };
 
       const syncFinancierosDesdeSubtotal = () => {
         const subtotal = parseMoney(actasSubtotalField?.value || "");
+        const valorActaActual = getValorActaActual();
+        const valorEjecutado = Math.max(0, subtotal - valorActaActual);
         if (valorACobrarField) {
-          valorACobrarField.value = subtotal ? formatCurrency(subtotal) : "";
+          valorACobrarField.value = valorActaActual
+            ? formatCurrency(valorActaActual)
+            : "";
           updateFieldState(valorACobrarField);
         }
         if (valorPresenteInformeField) {
-          valorPresenteInformeField.value = subtotal
-            ? formatCurrency(subtotal)
+          valorPresenteInformeField.value = valorActaActual
+            ? formatCurrency(valorActaActual)
             : "";
           updateFieldState(valorPresenteInformeField);
+        }
+        const valorEjecutadoField = document.querySelector(
+          "input[name='valor_ejecutado']",
+        );
+        if (valorEjecutadoField) {
+          valorEjecutadoField.value = subtotal
+            ? formatCurrency(valorEjecutado)
+            : "";
+          updateFieldState(valorEjecutadoField);
         }
         if (saldoPendienteField) {
           const contrato = parseMoney(valorContratoField?.value || "");
@@ -1845,26 +1864,35 @@
         return `${from} - ${to}`;
       };
 
-      const syncActaPeriodoDesdeInformado = (force = false) => {
+      const syncActaPeriodoDesdeInformado = (mode = "latest-auto") => {
         const periodo = buildPeriodoInformadoLabel();
-        const periodoFields = actasRows.querySelectorAll(
-          "input[name='acta_parcial_periodo_item']",
+        const periodoFields = Array.from(
+          actasRows.querySelectorAll("input[name='acta_parcial_periodo_item']"),
         );
-        periodoFields.forEach((field) => {
-          const isAuto = field.dataset.autoPeriodo === "1";
-          const hasValue = Boolean((field.value || "").trim());
-          if (periodo) {
-            if (force || !hasValue || isAuto) {
+
+        if (mode === "latest-auto") {
+          for (let index = periodoFields.length - 1; index >= 0; index -= 1) {
+            const field = periodoFields[index];
+            if (field.dataset.autoPeriodo !== "1") {
+              continue;
+            }
+            field.value = periodo;
+            updateFieldState(field);
+            return;
+          }
+          return;
+        }
+
+        if (mode === "empty-only") {
+          periodoFields.forEach((field) => {
+            const hasValue = Boolean((field.value || "").trim());
+            if (!hasValue) {
               field.value = periodo;
               field.dataset.autoPeriodo = "1";
               updateFieldState(field);
             }
-          } else if ((force || isAuto) && !hasValue) {
-            field.value = "";
-            field.dataset.autoPeriodo = "1";
-            updateFieldState(field);
-          }
-        });
+          });
+        }
       };
 
       const syncSupervisorCc = (overwrite = true) => {
@@ -2094,6 +2122,12 @@
         periodo.required = true;
         periodo.value = values.periodo || "";
         periodo.dataset.autoPeriodo = values.periodo ? "0" : "1";
+        periodo.addEventListener("input", () => {
+          periodo.dataset.autoPeriodo = "0";
+        });
+        periodo.addEventListener("change", () => {
+          periodo.dataset.autoPeriodo = "0";
+        });
 
         const valor = document.createElement("input");
         valor.name = "acta_parcial_valor_item";
@@ -2130,7 +2164,7 @@
         updateFieldState(valor);
 
         updateActaRemoveButtons();
-        syncActaPeriodoDesdeInformado(false);
+        syncActaPeriodoDesdeInformado("latest-auto");
       };
 
       addDirectaButton.addEventListener("click", () => {
@@ -2198,6 +2232,18 @@
           bindMoneyField(field);
         });
 
+      actasRows
+        .querySelectorAll("input[name='acta_parcial_periodo_item']")
+        .forEach((field) => {
+          field.dataset.autoPeriodo = field.value.trim() ? "0" : "1";
+          field.addEventListener("input", () => {
+            field.dataset.autoPeriodo = "0";
+          });
+          field.addEventListener("change", () => {
+            field.dataset.autoPeriodo = "0";
+          });
+        });
+
       fillMeses(plazoMes);
       fillMeses(fechaExpMes);
       fillAnios(plazoAnio);
@@ -2242,10 +2288,10 @@
           return;
         }
         field.addEventListener("change", () =>
-          syncActaPeriodoDesdeInformado(true),
+          syncActaPeriodoDesdeInformado("latest-auto"),
         );
         field.addEventListener("input", () =>
-          syncActaPeriodoDesdeInformado(true),
+          syncActaPeriodoDesdeInformado("latest-auto"),
         );
       });
 
@@ -2259,7 +2305,7 @@
       updateFechaVencimientoDesdePlazo();
       updateFechaPresentacionDesdeExpedicion();
       syncValorContratoDesdeInicial();
-      syncActaPeriodoDesdeInformado(false);
+      syncActaPeriodoDesdeInformado("empty-only");
       normalizeFormFieldsToUppercase();
 
       updateRemoveButtons(directasRows);
@@ -2393,7 +2439,7 @@
         updateActasSubtotal();
         syncValorContratoDesdeInicial();
         syncFinancierosDesdeSubtotal();
-        syncActaPeriodoDesdeInformado(false);
+        syncActaPeriodoDesdeInformado("latest-auto");
         normalizeFormFieldsToUppercase();
         updateSubmitState();
         scheduleAutosave();
