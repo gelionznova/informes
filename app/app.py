@@ -353,9 +353,15 @@ def _current_user() -> dict | None:
     tab_id = _get_tab_id()
     if tab_id:
         user = _get_tab_user(tab_id)
-        if not user:
-            return None
-        return user
+        if user:
+            return user
+        if session.get("user_id"):
+            return {
+                "id": session.get("user_id"),
+                "username": session.get("username"),
+                "role": session.get("role"),
+            }
+        return None
     if not session.get("user_id"):
         return None
     return {
@@ -420,6 +426,7 @@ def _ensure_default_roles_and_admin() -> None:
                 role["id"],
                 "Admin",
                 "Principal",
+                "Administracion",
                 "cedula_ciudadania",
                 "0000000000",
             )
@@ -631,6 +638,9 @@ def login():
                     "role": user["role"],
                 }
                 session["tabs"] = tabs
+                session["user_id"] = user["id"]
+                session["username"] = user["username"]
+                session["role"] = user["role"]
                 session["boot_id"] = APP_BOOT_ID
                 session.modified = True
             else:
@@ -900,12 +910,13 @@ def admin_create_user():
     role_id_raw = request.form.get("role_id", "")
     first_name = request.form.get("first_name", "").strip()
     last_name = request.form.get("last_name", "").strip()
+    dependency = request.form.get("dependency", "").strip()
     doc_type = request.form.get("doc_type", "").strip()
     doc_number = request.form.get("doc_number", "").strip()
     if not username or not password or not role_id_raw:
         return _render_admin(error="Completa usuario, clave y rol.")
-    if not first_name or not last_name or not doc_type or not doc_number:
-        return _render_admin(error="Completa nombres, apellidos, tipo y numero de documento.")
+    if not first_name or not last_name or not dependency or not doc_type or not doc_number:
+        return _render_admin(error="Completa nombres, apellidos, dependencia, tipo y numero de documento.")
     if get_user_by_username(username):
         return _render_admin(error="El usuario ya existe.")
     try:
@@ -916,7 +927,7 @@ def admin_create_user():
     if not role:
         return _render_admin(error="Rol invalido.")
     password_hash = generate_password_hash(password)
-    create_user(username, password_hash, role_id, first_name, last_name, doc_type, doc_number)
+    create_user(username, password_hash, role_id, first_name, last_name, dependency, doc_type, doc_number)
     return _render_admin(message="Usuario creado correctamente.")
 
 @app.route("/admin/users/<int:user_id>/role", methods=["POST"])
@@ -941,12 +952,13 @@ def admin_update_user(user_id: int):
     role_id_raw = request.form.get("role_id", "")
     first_name = request.form.get("first_name", "").strip()
     last_name = request.form.get("last_name", "").strip()
+    dependency = request.form.get("dependency", "").strip()
     doc_type = request.form.get("doc_type", "").strip()
     doc_number = request.form.get("doc_number", "").strip()
     if not username or not role_id_raw:
         return _render_admin(error="Completa usuario y rol.")
-    if not first_name or not last_name or not doc_type or not doc_number:
-        return _render_admin(error="Completa nombres, apellidos, tipo y numero de documento.")
+    if not first_name or not last_name or not dependency or not doc_type or not doc_number:
+        return _render_admin(error="Completa nombres, apellidos, dependencia, tipo y numero de documento.")
     try:
         role_id = int(role_id_raw)
     except ValueError:
@@ -964,6 +976,7 @@ def admin_update_user(user_id: int):
         role_id,
         first_name,
         last_name,
+        dependency,
         doc_type,
         doc_number,
         password_hash,

@@ -127,39 +127,65 @@ def _build_anexo_document(context: dict, out_path: str) -> None:
         evidencias = item.get("evidencias") or {}
         images = evidencias.get("images") or []
         groups = evidencias.get("groups") or []
+        pdfs = evidencias.get("pdfs") or []
         total_groups = max(len(groups), math.ceil(len(images) / 3))
 
-        if not images:
-            doc.add_paragraph("Evidencia fotografica: Sin evidencia.")
+        if not images and not pdfs:
+            doc.add_paragraph("Evidencias: Sin evidencia.")
             doc.add_paragraph("")
             continue
 
-        for group_index in range(total_groups):
-            start = group_index * 3
-            chunk = images[start : start + 3]
-            if not chunk:
-                continue
-            table = doc.add_table(rows=1, cols=3)
-            for cell_index, image in enumerate(chunk):
-                data_url = image.get("dataUrl") or image.get("data_url")
-                image_bytes = _decode_data_url(data_url)
-                if not image_bytes:
+        if images:
+            for group_index in range(total_groups):
+                start = group_index * 3
+                chunk = images[start : start + 3]
+                if not chunk:
                     continue
-                run = table.rows[0].cells[cell_index].paragraphs[0].add_run()
-                # Tamaño fijo: 4x4 cm por imagen
-                from docx.shared import Cm
-                run.add_picture(io.BytesIO(image_bytes), width=Cm(4), height=Cm(4))
+                table = doc.add_table(rows=1, cols=3)
+                for cell_index, image in enumerate(chunk):
+                    data_url = image.get("dataUrl") or image.get("data_url")
+                    image_bytes = _decode_data_url(data_url)
+                    if not image_bytes:
+                        continue
+                    run = table.rows[0].cells[cell_index].paragraphs[0].add_run()
+                    # Tamaño fijo: 4x4 cm por imagen
+                    from docx.shared import Cm
 
-            group = groups[group_index] if group_index < len(groups) else {}
-            description = (group.get("description") or "").strip()
-            date = (group.get("date") or "").strip()
-            paragraph = doc.add_paragraph(
-                f"Descripcion: {description}" if description else "Descripcion:"
-            )
+                    run.add_picture(
+                        io.BytesIO(image_bytes), width=Cm(4), height=Cm(4)
+                    )
+
+                group = groups[group_index] if group_index < len(groups) else {}
+                description = (group.get("description") or "").strip()
+                date = (group.get("date") or "").strip()
+                paragraph = doc.add_paragraph(
+                    f"Descripcion: {description}" if description else "Descripcion:"
+                )
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                paragraph = doc.add_paragraph(
+                    f"Fecha: {date}" if date else "Fecha:"
+                )
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                doc.add_paragraph("")
+        else:
+            doc.add_paragraph("Evidencia fotografica: Sin evidencia.")
+
+        if pdfs:
+            paragraph = doc.add_paragraph("Evidencia PDF:")
             paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            paragraph = doc.add_paragraph(f"Fecha: {date}" if date else "Fecha:")
+            for pdf_index, pdf in enumerate(pdfs, start=1):
+                pdf_name = ""
+                if isinstance(pdf, dict):
+                    pdf_name = str(pdf.get("name", "")).strip()
+                if not pdf_name:
+                    pdf_name = f"Documento {pdf_index}.pdf"
+                paragraph = doc.add_paragraph(f"- {pdf_name}")
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        else:
+            paragraph = doc.add_paragraph("Evidencia PDF: Sin evidencia.")
             paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            doc.add_paragraph("")
+
+        doc.add_paragraph("")
 
     doc.save(out_path)
 

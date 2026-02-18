@@ -245,8 +245,16 @@
               <label
                 >Entidad contratante<input name="entidad_contratante" required
               /></label>
-              <label>NIT<input name="nit" required /></label>
-              <label>Contratista<input name="contratista" required /></label>
+              <label>NIT ENTIDAD<input name="nit" required /></label>
+              <label
+                >Nombre Completo (Contratista)<input
+                  name="contratista"
+                  required
+              /></label>
+              <label>CC<input name="cc" required /></label>
+              <label
+                >Ciudad de expedicion<input name="ciudad_expedicion" required
+              /></label>
               <label>
                 Supervisor
                 <select name="supervisor" required>
@@ -266,10 +274,6 @@
                   name="supervisor_cc"
                   readonly
                   placeholder="Se completa al seleccionar supervisor"
-              /></label>
-              <label>CC<input name="cc" required /></label>
-              <label
-                >Ciudad de expedicion<input name="ciudad_expedicion" required
               /></label>
               <div class="plazo-group">
                 <div class="group-title">Plazo inicial</div>
@@ -352,7 +356,8 @@
               <label
                 >Fecha presentacion informe<input
                   name="fecha_presentacion_informe"
-                  type="date"
+                  type="text"
+                  placeholder="dd/mm/aaaa"
                   required
               /></label>
             </div>
@@ -404,7 +409,9 @@
               <label
                 >No. planilla<input name="aportes_planilla" required
               /></label>
-              <label>Mes de aporte<input name="aportes_mes" required /></label>
+              <label
+                >Mes de aporte<input name="aportes_mes" type="month" required
+              /></label>
               <label
                 >Fecha pago aportes<input
                   name="fecha_pago_aportes"
@@ -565,23 +572,78 @@
 
     <div class="modal" id="evidenceModal" aria-hidden="true">
       <div class="modal-card modal-card--wide" role="dialog" aria-modal="true">
-        <h3>Evidencias fotograficas</h3>
-        <div class="evidence-controls">
-          <input
-            type="file"
-            id="evidenceFiles"
-            accept="image/*"
-            multiple
-            hidden
-          />
-          <button type="button" class="secondary" id="addEvidenceFiles">
-            Agregar fotos
+        <h3>Evidencias</h3>
+        <div
+          class="evidence-tabs"
+          role="tablist"
+          aria-label="Tipo de evidencia"
+        >
+          <button
+            type="button"
+            class="evidence-tab is-active"
+            id="evidenceTabPhotos"
+            data-evidence-tab="photos"
+            role="tab"
+            aria-selected="true"
+          >
+            Evidencia fotografica
           </button>
-          <span class="evidence-hint">
-            Se agrupan automaticamente en bloques de 3 fotos.
-          </span>
+          <button
+            type="button"
+            class="evidence-tab"
+            id="evidenceTabPdfs"
+            data-evidence-tab="pdfs"
+            role="tab"
+            aria-selected="false"
+          >
+            Evidencia PDF
+          </button>
         </div>
-        <div id="evidenceGroups" class="evidence-groups"></div>
+        <div
+          class="evidence-pane is-active"
+          id="evidencePanePhotos"
+          role="tabpanel"
+        >
+          <div class="evidence-controls">
+            <input
+              type="file"
+              id="evidenceFiles"
+              accept="image/*"
+              multiple
+              hidden
+            />
+            <button type="button" class="secondary" id="addEvidenceFiles">
+              Agregar fotos
+            </button>
+            <span class="evidence-hint">
+              Se agrupan automaticamente en bloques de 3 fotos.
+            </span>
+          </div>
+          <div id="evidenceGroups" class="evidence-groups"></div>
+        </div>
+        <div
+          class="evidence-pane"
+          id="evidencePanePdfs"
+          role="tabpanel"
+          aria-hidden="true"
+        >
+          <div class="evidence-controls">
+            <input
+              type="file"
+              id="evidencePdfFiles"
+              accept="application/pdf,.pdf"
+              multiple
+              hidden
+            />
+            <button type="button" class="secondary" id="addEvidencePdfFiles">
+              Agregar PDF
+            </button>
+            <span class="evidence-hint">
+              Adjunta uno o varios archivos PDF como soporte.
+            </span>
+          </div>
+          <div id="evidencePdfs" class="evidence-pdfs"></div>
+        </div>
         <div class="modal-actions">
           <button type="button" class="secondary" id="evidenceCancel">
             Cancelar
@@ -648,11 +710,19 @@
       const closeModalButton = document.getElementById("closeModal");
       const evidenceModal = document.getElementById("evidenceModal");
       const evidenceGroups = document.getElementById("evidenceGroups");
+      const evidencePdfs = document.getElementById("evidencePdfs");
       const evidenceFilesInput = document.getElementById("evidenceFiles");
+      const evidencePdfFilesInput = document.getElementById("evidencePdfFiles");
       const addEvidenceFilesButton =
         document.getElementById("addEvidenceFiles");
+      const addEvidencePdfFilesButton = document.getElementById(
+        "addEvidencePdfFiles",
+      );
       const evidenceCancelButton = document.getElementById("evidenceCancel");
       const evidenceSaveButton = document.getElementById("evidenceSave");
+      const evidenceTabButtons = Array.from(
+        document.querySelectorAll("[data-evidence-tab]"),
+      );
       const themeToggle = document.getElementById("themeToggle");
       const applyTheme = (theme) => {
         document.body.dataset.theme = theme;
@@ -697,12 +767,25 @@
       const evidenceByRow = new Map();
       let activeEvidenceId = null;
       let activeEvidenceDraft = null;
+      let activeEvidenceTab = "photos";
 
       const createEvidenceId = () =>
         `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
       const cloneEvidence = (value) =>
-        value ? JSON.parse(JSON.stringify(value)) : { images: [], groups: [] };
+        value
+          ? {
+              images: Array.isArray(value.images)
+                ? JSON.parse(JSON.stringify(value.images))
+                : [],
+              groups: Array.isArray(value.groups)
+                ? JSON.parse(JSON.stringify(value.groups))
+                : [],
+              pdfs: Array.isArray(value.pdfs)
+                ? JSON.parse(JSON.stringify(value.pdfs))
+                : [],
+            }
+          : { images: [], groups: [], pdfs: [] };
 
       const normalizeEvidenceGroups = (evidence) => {
         const totalGroups = Math.ceil(evidence.images.length / 3);
@@ -712,6 +795,67 @@
         if (evidence.groups.length > totalGroups) {
           evidence.groups = evidence.groups.slice(0, totalGroups);
         }
+      };
+
+      const setEvidenceTab = (tabName) => {
+        activeEvidenceTab = tabName === "pdfs" ? "pdfs" : "photos";
+        evidenceTabButtons.forEach((button) => {
+          const isActive = button.dataset.evidenceTab === activeEvidenceTab;
+          button.classList.toggle("is-active", isActive);
+          button.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+
+        const photosPane = document.getElementById("evidencePanePhotos");
+        const pdfsPane = document.getElementById("evidencePanePdfs");
+        if (photosPane) {
+          const isPhotos = activeEvidenceTab === "photos";
+          photosPane.classList.toggle("is-active", isPhotos);
+          photosPane.setAttribute("aria-hidden", isPhotos ? "false" : "true");
+        }
+        if (pdfsPane) {
+          const isPdfs = activeEvidenceTab === "pdfs";
+          pdfsPane.classList.toggle("is-active", isPdfs);
+          pdfsPane.setAttribute("aria-hidden", isPdfs ? "false" : "true");
+        }
+      };
+
+      const renderPdfEvidence = () => {
+        if (!evidencePdfs || !activeEvidenceDraft) {
+          return;
+        }
+        evidencePdfs.innerHTML = "";
+        if (!activeEvidenceDraft.pdfs.length) {
+          const empty = document.createElement("p");
+          empty.className = "evidence-empty";
+          empty.textContent = "Aun no has agregado archivos PDF.";
+          evidencePdfs.appendChild(empty);
+          return;
+        }
+
+        const list = document.createElement("div");
+        list.className = "evidence-pdf-list";
+        activeEvidenceDraft.pdfs.forEach((pdf, index) => {
+          const row = document.createElement("div");
+          row.className = "evidence-pdf-item";
+
+          const name = document.createElement("span");
+          name.className = "evidence-pdf-name";
+          name.textContent = pdf.name || `Documento ${index + 1}`;
+
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.className = "secondary evidence-remove";
+          removeButton.textContent = "Quitar";
+          removeButton.addEventListener("click", () => {
+            activeEvidenceDraft.pdfs.splice(index, 1);
+            renderPdfEvidence();
+          });
+
+          row.appendChild(name);
+          row.appendChild(removeButton);
+          list.appendChild(row);
+        });
+        evidencePdfs.appendChild(list);
       };
 
       const renderEvidenceModal = () => {
@@ -791,6 +935,8 @@
           groupCard.appendChild(fields);
           evidenceGroups.appendChild(groupCard);
         });
+
+        renderPdfEvidence();
       };
 
       const openEvidenceModal = (row) => {
@@ -800,6 +946,7 @@
         const evidenceId = row.dataset.evidenceId;
         activeEvidenceId = evidenceId;
         activeEvidenceDraft = cloneEvidence(evidenceByRow.get(evidenceId));
+        setEvidenceTab("photos");
         renderEvidenceModal();
         evidenceModal.classList.add("is-open");
         evidenceModal.setAttribute("aria-hidden", "false");
@@ -810,6 +957,12 @@
         evidenceModal.setAttribute("aria-hidden", "true");
         activeEvidenceId = null;
         activeEvidenceDraft = null;
+        if (evidenceFilesInput) {
+          evidenceFilesInput.value = "";
+        }
+        if (evidencePdfFilesInput) {
+          evidencePdfFilesInput.value = "";
+        }
       };
 
       let activeEjecutadasField = null;
@@ -860,6 +1013,42 @@
           evidenceFilesInput.value = "";
         });
       }
+
+      if (addEvidencePdfFilesButton && evidencePdfFilesInput) {
+        addEvidencePdfFilesButton.addEventListener("click", () => {
+          evidencePdfFilesInput.click();
+        });
+
+        evidencePdfFilesInput.addEventListener("change", async (event) => {
+          if (!activeEvidenceDraft) {
+            return;
+          }
+          const files = Array.from(event.target.files || []);
+          const pdfFiles = files.filter(
+            (file) =>
+              file.type === "application/pdf" ||
+              file.name.toLowerCase().endsWith(".pdf"),
+          );
+          if (!pdfFiles.length) {
+            return;
+          }
+          const dataUrls = await Promise.all(
+            pdfFiles.map(async (file) => ({
+              name: file.name,
+              dataUrl: await readFileAsDataUrl(file),
+            })),
+          );
+          activeEvidenceDraft.pdfs.push(...dataUrls);
+          renderPdfEvidence();
+          evidencePdfFilesInput.value = "";
+        });
+      }
+
+      evidenceTabButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          setEvidenceTab(button.dataset.evidenceTab || "photos");
+        });
+      });
 
       if (evidenceSaveButton) {
         evidenceSaveButton.addEventListener("click", () => {
@@ -1098,7 +1287,22 @@
       const loadHistory = async () => {
         try {
           const res = await fetch("/history");
+          if (!res.ok) {
+            if (res.status === 401) {
+              historyList.innerHTML = "";
+              const empty = document.createElement("span");
+              empty.className = "history-empty";
+              empty.textContent =
+                "Sesion vencida o invalida. Ingresa de nuevo para ver el historial.";
+              historyList.appendChild(empty);
+              return;
+            }
+            throw new Error("history_http_error");
+          }
           const json = await res.json();
+          if (!json.ok) {
+            throw new Error("history_api_error");
+          }
           renderHistory(json.items || []);
         } catch (error) {
           historyList.innerHTML = "";
@@ -1230,6 +1434,39 @@
           valorEjecutadoField.value = hasValue ? formatCurrency(total) : "";
           updateFieldState(valorEjecutadoField);
         }
+        syncFinancierosDesdeSubtotal();
+      };
+
+      const syncFinancierosDesdeSubtotal = () => {
+        const subtotal = parseMoney(actasSubtotalField?.value || "");
+        if (valorACobrarField) {
+          valorACobrarField.value = subtotal ? formatCurrency(subtotal) : "";
+          updateFieldState(valorACobrarField);
+        }
+        if (valorPresenteInformeField) {
+          valorPresenteInformeField.value = subtotal
+            ? formatCurrency(subtotal)
+            : "";
+          updateFieldState(valorPresenteInformeField);
+        }
+        if (saldoPendienteField) {
+          const contrato = parseMoney(valorContratoField?.value || "");
+          const saldo = contrato - subtotal;
+          saldoPendienteField.value = contrato ? formatCurrency(saldo) : "";
+          updateFieldState(saldoPendienteField);
+        }
+      };
+
+      const syncValorContratoDesdeInicial = () => {
+        if (!valorContratoField || !valorInicialField) {
+          return;
+        }
+        const valorInicial = parseMoney(valorInicialField.value || "");
+        valorContratoField.value = valorInicial
+          ? formatCurrency(valorInicial)
+          : "";
+        updateFieldState(valorContratoField);
+        syncFinancierosDesdeSubtotal();
       };
 
       const bindMoneyField = (field) => {
@@ -1243,6 +1480,53 @@
           field.value = formatCurrency(numberValue);
           updateFieldState(field);
         });
+      };
+
+      const shouldUppercaseField = (field) => {
+        if (!field) {
+          return false;
+        }
+        if (field.closest("#t2")) {
+          return false;
+        }
+        if (field.classList.contains("money")) {
+          return false;
+        }
+        if (field.tagName === "TEXTAREA") {
+          return true;
+        }
+        if (field.tagName !== "INPUT") {
+          return false;
+        }
+        const type = (field.type || "text").toLowerCase();
+        return ["text", "search", "email", "tel"].includes(type);
+      };
+
+      const normalizeFieldToUppercase = (field) => {
+        if (!shouldUppercaseField(field)) {
+          return;
+        }
+        const value = String(field.value || "");
+        const upper = value.toUpperCase();
+        if (upper === value) {
+          return;
+        }
+        const cursorStart = field.selectionStart;
+        const cursorEnd = field.selectionEnd;
+        field.value = upper;
+        if (
+          typeof cursorStart === "number" &&
+          typeof cursorEnd === "number" &&
+          document.activeElement === field
+        ) {
+          field.setSelectionRange(cursorStart, cursorEnd);
+        }
+      };
+
+      const normalizeFormFieldsToUppercase = () => {
+        form
+          .querySelectorAll("input, textarea")
+          .forEach((field) => normalizeFieldToUppercase(field));
       };
 
       const form = document.getElementById("form");
@@ -1261,6 +1545,21 @@
       const fechaExpAnio = document.querySelector(
         "select[name='fecha_expedicion_informe_año']",
       );
+      const fechaInicioContratoField = document.querySelector(
+        "input[name='fecha_inicio_contrato']",
+      );
+      const fechaVencimientoContratoField = document.querySelector(
+        "input[name='fecha_vencimiento_contrato']",
+      );
+      const fechaPresentacionInformeField = document.querySelector(
+        "input[name='fecha_presentacion_informe']",
+      );
+      const periodoInformadoDeField = document.querySelector(
+        "input[name='periodo_i_de']",
+      );
+      const periodoInformadoAField = document.querySelector(
+        "input[name='periodo_i_a']",
+      );
       const directasRows = document.getElementById("directasRows");
       const actasRows = document.getElementById("actasRows");
       const addDirectaButton = document.getElementById("addDirecta");
@@ -1274,6 +1573,47 @@
       const supervisorCcField = document.querySelector(
         "input[name='supervisor_cc']",
       );
+      const valorInicialField = document.querySelector(
+        "input[name='valor_inicial']",
+      );
+      const valorContratoField = document.querySelector(
+        "input[name='valor_contrato']",
+      );
+      const valorACobrarField = document.querySelector(
+        "input[name='valor_a_cobrar']",
+      );
+      const valorPresenteInformeField = document.querySelector(
+        "input[name='valor_presente_informe']",
+      );
+      const saldoPendienteField = document.querySelector(
+        "input[name='saldo_pendiente']",
+      );
+
+      if (valorInicialField) {
+        valorInicialField.addEventListener(
+          "blur",
+          syncValorContratoDesdeInicial,
+        );
+        valorInicialField.addEventListener(
+          "change",
+          syncValorContratoDesdeInicial,
+        );
+        valorInicialField.addEventListener(
+          "input",
+          syncValorContratoDesdeInicial,
+        );
+      }
+
+      if (valorContratoField) {
+        valorContratoField.addEventListener(
+          "blur",
+          syncFinancierosDesdeSubtotal,
+        );
+        valorContratoField.addEventListener(
+          "change",
+          syncFinancierosDesdeSubtotal,
+        );
+      }
 
       const autosaveKey = `draft_${tabId}`;
       const autosaveIgnoreNames = new Set([
@@ -1432,6 +1772,101 @@
         }
       };
 
+      const formatIsoDate = (year, month, day) =>
+        `${String(year).padStart(4, "0")}-${String(month).padStart(
+          2,
+          "0",
+        )}-${String(day).padStart(2, "0")}`;
+
+      const updateFechaVencimientoDesdePlazo = () => {
+        if (!fechaVencimientoContratoField) {
+          return;
+        }
+        const day = Number(plazoDia?.value || "");
+        const monthName = plazoMes?.value || "";
+        const year = Number(plazoAnio?.value || "");
+        const monthIndex = meses.indexOf(monthName);
+        if (!day || monthIndex < 0 || !year) {
+          fechaVencimientoContratoField.value = "";
+          updateFieldState(fechaVencimientoContratoField);
+          return;
+        }
+        fechaVencimientoContratoField.value = formatIsoDate(
+          year,
+          monthIndex + 1,
+          day,
+        );
+        updateFieldState(fechaVencimientoContratoField);
+      };
+
+      const updateFechaPresentacionDesdeExpedicion = () => {
+        if (!fechaPresentacionInformeField) {
+          return;
+        }
+        const day = Number(fechaExpDia?.value || "");
+        const monthName = fechaExpMes?.value || "";
+        const year = Number(fechaExpAnio?.value || "");
+        const monthIndex = meses.indexOf(monthName);
+        if (!day || monthIndex < 0 || !year) {
+          fechaPresentacionInformeField.value = "";
+          updateFieldState(fechaPresentacionInformeField);
+          return;
+        }
+        fechaPresentacionInformeField.value = `${String(day).padStart(
+          2,
+          "0",
+        )}/${String(monthIndex + 1).padStart(2, "0")}/${String(year).padStart(
+          4,
+          "0",
+        )}`;
+        updateFieldState(fechaPresentacionInformeField);
+      };
+
+      const formatIsoToDisplayDate = (value) => {
+        if (!value) {
+          return "";
+        }
+        const parts = String(value).split("-");
+        if (parts.length !== 3) {
+          return value;
+        }
+        const [year, month, day] = parts;
+        return `${day}/${month}/${year}`;
+      };
+
+      const buildPeriodoInformadoLabel = () => {
+        const from = formatIsoToDisplayDate(
+          periodoInformadoDeField?.value || "",
+        );
+        const to = formatIsoToDisplayDate(periodoInformadoAField?.value || "");
+        if (!from || !to) {
+          return "";
+        }
+        return `${from} - ${to}`;
+      };
+
+      const syncActaPeriodoDesdeInformado = (force = false) => {
+        const periodo = buildPeriodoInformadoLabel();
+        const periodoFields = actasRows.querySelectorAll(
+          "input[name='acta_parcial_periodo_item']",
+        );
+        periodoFields.forEach((field) => {
+          const isAuto = field.dataset.autoPeriodo === "1";
+          const hasValue = Boolean((field.value || "").trim());
+          if (periodo) {
+            if (force || !hasValue || isAuto) {
+              field.value = periodo;
+              field.dataset.autoPeriodo = "1";
+              updateFieldState(field);
+            }
+          } else if ((force || isAuto) && !hasValue) {
+            field.value = "";
+            field.dataset.autoPeriodo = "1";
+            updateFieldState(field);
+          }
+        });
+      };
+
       const syncSupervisorCc = (overwrite = true) => {
         if (!supervisorSelect || !supervisorCcField) {
           return;
@@ -1510,8 +1945,14 @@
       };
 
       const bindFieldEvents = (field) => {
-        field.addEventListener("input", updateSubmitState);
-        field.addEventListener("change", updateSubmitState);
+        field.addEventListener("input", () => {
+          normalizeFieldToUppercase(field);
+          updateSubmitState();
+        });
+        field.addEventListener("change", () => {
+          normalizeFieldToUppercase(field);
+          updateSubmitState();
+        });
         field.addEventListener("blur", () => updateFieldState(field));
         field.addEventListener("input", scheduleAutosave);
         field.addEventListener("change", scheduleAutosave);
@@ -1652,6 +2093,7 @@
         periodo.name = "acta_parcial_periodo_item";
         periodo.required = true;
         periodo.value = values.periodo || "";
+        periodo.dataset.autoPeriodo = values.periodo ? "0" : "1";
 
         const valor = document.createElement("input");
         valor.name = "acta_parcial_valor_item";
@@ -1688,6 +2130,7 @@
         updateFieldState(valor);
 
         updateActaRemoveButtons();
+        syncActaPeriodoDesdeInformado(false);
       };
 
       addDirectaButton.addEventListener("click", () => {
@@ -1775,9 +2218,54 @@
         updateDias(fechaExpDia, fechaExpMes, fechaExpAnio),
       );
 
+      [plazoDia, plazoMes, plazoAnio].forEach((field) => {
+        if (!field) {
+          return;
+        }
+        field.addEventListener("change", updateFechaVencimientoDesdePlazo);
+        field.addEventListener("input", updateFechaVencimientoDesdePlazo);
+      });
+
+      [fechaExpDia, fechaExpMes, fechaExpAnio].forEach((field) => {
+        if (!field) {
+          return;
+        }
+        field.addEventListener(
+          "change",
+          updateFechaPresentacionDesdeExpedicion,
+        );
+        field.addEventListener("input", updateFechaPresentacionDesdeExpedicion);
+      });
+
+      [periodoInformadoDeField, periodoInformadoAField].forEach((field) => {
+        if (!field) {
+          return;
+        }
+        field.addEventListener("change", () =>
+          syncActaPeriodoDesdeInformado(true),
+        );
+        field.addEventListener("input", () =>
+          syncActaPeriodoDesdeInformado(true),
+        );
+      });
+
+      if (fechaInicioContratoField) {
+        fechaInicioContratoField.addEventListener(
+          "change",
+          updateFechaVencimientoDesdePlazo,
+        );
+      }
+
+      updateFechaVencimientoDesdePlazo();
+      updateFechaPresentacionDesdeExpedicion();
+      syncValorContratoDesdeInicial();
+      syncActaPeriodoDesdeInformado(false);
+      normalizeFormFieldsToUppercase();
+
       updateRemoveButtons(directasRows);
       updateActaRemoveButtons();
       updateActasSubtotal();
+      syncFinancierosDesdeSubtotal();
       updateSubmitState();
 
       submitButton.addEventListener("click", (event) => {
@@ -1867,7 +2355,6 @@
           "fecha_vencimiento_contrato",
           "periodo_i_de",
           "periodo_i_a",
-          "fecha_presentacion_informe",
           "fecha_pago_aportes",
         ].forEach((name) => {
           const raw = data[name];
@@ -1904,6 +2391,10 @@
         updateRemoveButtons(directasRows);
         updateActaRemoveButtons();
         updateActasSubtotal();
+        syncValorContratoDesdeInicial();
+        syncFinancierosDesdeSubtotal();
+        syncActaPeriodoDesdeInformado(false);
+        normalizeFormFieldsToUppercase();
         updateSubmitState();
         scheduleAutosave();
       };
@@ -1926,10 +2417,20 @@
           if (!recordId) return;
           try {
             const res = await fetch(`/history/${recordId}`);
+            if (!res.ok) {
+              if (res.status === 401) {
+                statusEl.textContent =
+                  "Sesion vencida o invalida. Ingresa de nuevo.";
+                return;
+              }
+              throw new Error("history_item_http_error");
+            }
             const json = await res.json();
             if (json.ok) {
               applyHistoryData(json.item.data);
               window.scrollTo({ top: 0, behavior: "smooth" });
+            } else {
+              statusEl.textContent = "No se pudo cargar el registro";
             }
           } catch (error) {
             statusEl.textContent = "No se pudo cargar el registro";
@@ -1977,12 +2478,12 @@
         "fecha_vencimiento_contrato",
         "periodo_i_de",
         "periodo_i_a",
-        "fecha_presentacion_informe",
         "fecha_pago_aportes",
       ];
 
       document.getElementById("form").addEventListener("submit", async (e) => {
         e.preventDefault();
+        normalizeFormFieldsToUppercase();
         if (!formIsComplete) {
           validationState.showMissing = true;
           updateSubmitState();
@@ -1998,7 +2499,13 @@
           }
           const evidenceId = row.dataset.evidenceId;
           const evidence = evidenceId ? evidenceByRow.get(evidenceId) : null;
-          if (!evidence || !evidence.images || !evidence.images.length) {
+          const imageCount =
+            evidence && Array.isArray(evidence.images)
+              ? evidence.images.length
+              : 0;
+          const pdfCount =
+            evidence && Array.isArray(evidence.pdfs) ? evidence.pdfs.length : 0;
+          if (!evidence || imageCount + pdfCount === 0) {
             missingEvidence.push(index + 1);
           }
         });
@@ -2008,7 +2515,7 @@
             .join("");
           openModal(
             "Faltan evidencias",
-            `<p>Debes adjuntar fotos para:</p><ul>${items}</ul>`,
+            `<p>Debes adjuntar al menos una evidencia (foto o PDF) para:</p><ul>${items}</ul>`,
           );
           return;
         }

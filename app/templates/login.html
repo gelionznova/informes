@@ -7,6 +7,22 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
+    <div class="modal" id="welcomeModal" aria-hidden="true">
+      <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="welcomeTitle"
+      >
+        <h3 id="welcomeTitle">Sistema de gestion de informe V1.0</h3>
+        <p>Bienvenido. Ingresa tus credenciales para continuar.</p>
+        <div class="modal-actions">
+          <button type="button" class="primary" id="closeWelcomeModal">
+            Continuar
+          </button>
+        </div>
+      </div>
+    </div>
     <main class="shell auth-shell">
       <section class="auth-card">
         <h1>Iniciar sesion</h1>
@@ -56,6 +72,49 @@
       };
 
       const tabId = ensureTabId();
+
+      const welcomeModal = document.getElementById("welcomeModal");
+      const closeWelcomeModal = document.getElementById("closeWelcomeModal");
+
+      const openWelcomeModal = () => {
+        if (!welcomeModal) {
+          return;
+        }
+        welcomeModal.classList.add("is-open");
+        welcomeModal.setAttribute("aria-hidden", "false");
+      };
+
+      const hideWelcomeModal = () => {
+        if (!welcomeModal) {
+          return;
+        }
+        welcomeModal.classList.remove("is-open");
+        welcomeModal.setAttribute("aria-hidden", "true");
+      };
+
+      openWelcomeModal();
+
+      if (closeWelcomeModal) {
+        closeWelcomeModal.addEventListener("click", hideWelcomeModal);
+      }
+
+      if (welcomeModal) {
+        welcomeModal.addEventListener("click", (event) => {
+          if (event.target === welcomeModal) {
+            hideWelcomeModal();
+          }
+        });
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (
+          event.key === "Escape" &&
+          welcomeModal &&
+          welcomeModal.classList.contains("is-open")
+        ) {
+          hideWelcomeModal();
+        }
+      });
 
       document.querySelectorAll("form").forEach((form) => {
         if (form.querySelector("input[name='tab_id']")) {

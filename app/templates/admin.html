@@ -104,6 +104,10 @@
                     <input name="last_name" required />
                   </label>
                   <label>
+                    Dependencia
+                    <input name="dependency" required />
+                  </label>
+                  <label>
                     Tipo de documento
                     <select name="doc_type" required>
                       <option value="">Selecciona</option>
@@ -154,6 +158,7 @@
                   <div class="admin-row admin-header">
                     <span>Usuario</span>
                     <span>Nombre</span>
+                    <span>Dependencia</span>
                     <span>Documento</span>
                     <span>Rol</span>
                     <span>Acciones</span>
@@ -162,6 +167,7 @@
                   <div class="admin-row">
                     <span>{{ item.username }}</span>
                     <span>{{ item.first_name }} {{ item.last_name }}</span>
+                    <span>{{ item.dependency }}</span>
                     <span>{{ item.doc_type }} {{ item.doc_number }}</span>
                     <span>{{ item.role }}</span>
                     <div class="admin-actions">
@@ -172,6 +178,7 @@
                         data-username="{{ item.username }}"
                         data-first-name="{{ item.first_name }}"
                         data-last-name="{{ item.last_name }}"
+                        data-dependency="{{ item.dependency }}"
                         data-doc-type="{{ item.doc_type }}"
                         data-doc-number="{{ item.doc_number }}"
                         data-role-id="{{ item.role_id }}"
@@ -213,6 +220,10 @@
           <label>
             Apellidos
             <input name="last_name" id="editLastName" required />
+          </label>
+          <label>
+            Dependencia
+            <input name="dependency" id="editDependency" required />
           </label>
           <label>
             Tipo de documento
@@ -329,6 +340,7 @@
       const editUsername = document.getElementById("editUsername");
       const editFirstName = document.getElementById("editFirstName");
       const editLastName = document.getElementById("editLastName");
+      const editDependency = document.getElementById("editDependency");
       const editDocType = document.getElementById("editDocType");
       const editDocNumber = document.getElementById("editDocNumber");
       const editPassword = document.getElementById("editPassword");
@@ -356,6 +368,7 @@
           editUsername.value = button.dataset.username || "";
           editFirstName.value = button.dataset.firstName || "";
           editLastName.value = button.dataset.lastName || "";
+          editDependency.value = button.dataset.dependency || "";
           editDocType.value = button.dataset.docType || "";
           editDocNumber.value = button.dataset.docNumber || "";
           editRoleId.value = button.dataset.roleId || "";
@@ -398,6 +411,7 @@
           editUsername,
           editFirstName,
           editLastName,
+          editDependency,
           editDocType,
           editDocNumber,
           editRoleId,

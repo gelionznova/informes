@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     role_id INTEGER NOT NULL,
     first_name TEXT NOT NULL DEFAULT '',
     last_name TEXT NOT NULL DEFAULT '',
+    dependency TEXT NOT NULL DEFAULT '',
     doc_type TEXT NOT NULL DEFAULT '',
     doc_number TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
@@ -45,6 +46,7 @@ def _ensure_user_columns(conn: sqlite3.Connection) -> None:
     required = {
         "first_name": "TEXT NOT NULL DEFAULT ''",
         "last_name": "TEXT NOT NULL DEFAULT ''",
+        "dependency": "TEXT NOT NULL DEFAULT ''",
         "doc_type": "TEXT NOT NULL DEFAULT ''",
         "doc_number": "TEXT NOT NULL DEFAULT ''",
     }
@@ -108,6 +110,7 @@ def list_users() -> list[dict]:
                 users.username,
                 users.first_name,
                 users.last_name,
+                users.dependency,
                 users.doc_type,
                 users.doc_number,
                 users.role_id,
@@ -151,6 +154,7 @@ def get_user_by_username(username: str) -> dict | None:
                 users.password_hash,
                 users.first_name,
                 users.last_name,
+                users.dependency,
                 users.doc_type,
                 users.doc_number,
                 roles.name AS role
@@ -173,6 +177,7 @@ def get_user_by_id(user_id: int) -> dict | None:
                 users.password_hash,
                 users.first_name,
                 users.last_name,
+                users.dependency,
                 users.doc_type,
                 users.doc_number,
                 roles.name AS role,
@@ -191,6 +196,7 @@ def create_user(
     role_id: int,
     first_name: str,
     last_name: str,
+    dependency: str,
     doc_type: str,
     doc_number: str,
 ) -> int:
@@ -205,12 +211,13 @@ def create_user(
                 role_id,
                 first_name,
                 last_name,
+                dependency,
                 doc_type,
                 doc_number,
                 created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (username, password_hash, role_id, first_name, last_name, doc_type, doc_number, created_at),
+            (username, password_hash, role_id, first_name, last_name, dependency, doc_type, doc_number, created_at),
         )
         conn.commit()
         return cur.lastrowid
@@ -229,6 +236,7 @@ def update_user(
     role_id: int,
     first_name: str,
     last_name: str,
+    dependency: str,
     doc_type: str,
     doc_number: str,
     password_hash: str | None,
@@ -238,19 +246,19 @@ def update_user(
             conn.execute(
                 """
                 UPDATE users
-                SET username = ?, role_id = ?, first_name = ?, last_name = ?, doc_type = ?, doc_number = ?, password_hash = ?
+                SET username = ?, role_id = ?, first_name = ?, last_name = ?, dependency = ?, doc_type = ?, doc_number = ?, password_hash = ?
                 WHERE id = ?
                 """,
-                (username, role_id, first_name, last_name, doc_type, doc_number, password_hash, user_id),
+                (username, role_id, first_name, last_name, dependency, doc_type, doc_number, password_hash, user_id),
             )
         else:
             conn.execute(
                 """
                 UPDATE users
-                SET username = ?, role_id = ?, first_name = ?, last_name = ?, doc_type = ?, doc_number = ?
+                SET username = ?, role_id = ?, first_name = ?, last_name = ?, dependency = ?, doc_type = ?, doc_number = ?
                 WHERE id = ?
                 """,
-                (username, role_id, first_name, last_name, doc_type, doc_number, user_id),
+                (username, role_id, first_name, last_name, dependency, doc_type, doc_number, user_id),
             )
         conn.commit()
 
