@@ -10,6 +10,8 @@ import sys
 import threading
 import unicodedata
 import webbrowser
+import base64
+import binascii
 from functools import wraps
 import secrets
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -185,6 +187,76 @@ def _parse_money(value) -> float:
 def _format_currency(value: float) -> str:
     amount = int(round(float(value)))
     return f"$ {amount:,}".replace(",", ".")
+
+def _decode_data_url_to_bytes(value: str) -> bytes | None:
+    if not value:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    encoded = raw
+    if raw.startswith("data:"):
+        try:
+            _, encoded = raw.split(",", 1)
+        except ValueError:
+            return None
+    try:
+        return base64.b64decode(encoded)
+    except (ValueError, binascii.Error):
+        return None
+
+def _safe_file_part(value: str, fallback: str = "archivo") -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "")).strip("._-")
+    return cleaned or fallback
+
+def _save_record_pdf_attachments(payload: dict, record_id: int) -> list[str]:
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    saved_files: list[str] = []
+
+    def save_pdf(data_url: str, source_name: str, prefix: str) -> None:
+        content = _decode_data_url_to_bytes(data_url)
+        if not content:
+            return
+        base_name = _safe_file_part(os.path.splitext(source_name or "")[0], prefix)
+        filename = f"{record_id:05d}_{prefix}_{base_name}.pdf"
+        file_path = os.path.join(OUTPUT_DIR, filename)
+        counter = 1
+        while os.path.exists(file_path):
+            filename = f"{record_id:05d}_{prefix}_{base_name}_{counter}.pdf"
+            file_path = os.path.join(OUTPUT_DIR, filename)
+            counter += 1
+        with open(file_path, "wb") as file_handle:
+            file_handle.write(content)
+        saved_files.append(filename)
+
+    direct_items = payload.get("obligaciones_directas_items")
+    if isinstance(direct_items, list):
+        for activity_index, item in enumerate(direct_items, start=1):
+            if not isinstance(item, dict):
+                continue
+            evidence = item.get("evidencias")
+            if not isinstance(evidence, dict):
+                continue
+            pdfs = evidence.get("pdfs")
+            if not isinstance(pdfs, list):
+                continue
+            for pdf_index, pdf_item in enumerate(pdfs, start=1):
+                if not isinstance(pdf_item, dict):
+                    continue
+                data_url = str(pdf_item.get("dataUrl") or pdf_item.get("data_url") or "").strip()
+                if not data_url:
+                    continue
+                source_name = str(pdf_item.get("name") or f"actividad_{activity_index}_{pdf_index}.pdf")
+                save_pdf(data_url, source_name, f"evidencia_act{activity_index}")
+
+    planilla_pdf = payload.get("aportes_planilla_pdf")
+    if isinstance(planilla_pdf, dict):
+        data_url = str(planilla_pdf.get("dataUrl") or planilla_pdf.get("data_url") or "").strip()
+        if data_url:
+            source_name = str(planilla_pdf.get("name") or "planilla.pdf")
+            save_pdf(data_url, source_name, "planilla")
+
+    return saved_files
 
 def _extract_period_key(data: dict) -> str:
     raw_value = (
@@ -416,20 +488,51 @@ def _ensure_default_roles_and_admin() -> None:
     ):
         if not get_role_by_name(role_name):
             create_role(role_name)
-    if not has_any_users():
-        role = get_role_by_name(ROLE_SUPER_ADMIN)
-        if role:
-            password_hash = generate_password_hash("admin123")
+    admin_role = get_role_by_name(ROLE_SUPER_ADMIN)
+    if admin_role and not get_user_by_username("admin"):
+        password_hash = generate_password_hash("admin123")
+        create_user(
+            "admin",
+            password_hash,
+            admin_role["id"],
+            "Admin",
+            "Principal",
+            "Administracion",
+            "cedula_ciudadania",
+            "0000000000",
+        )
+
+    contractor_role = get_role_by_name(ROLE_CONTRATISTA)
+    if contractor_role and not get_user_by_username("Contratista"):
+        password_hash = generate_password_hash("contratista123")
+        create_user(
+            "Contratista",
+            password_hash,
+            contractor_role["id"],
+            "Usuario",
+            "Contratista",
+            "Contratacion",
+            "cedula_ciudadania",
+            "0000000001",
+        )
+
+    supervisor_role = get_role_by_name(ROLE_SUPERVISOR)
+    if supervisor_role:
+        rodrigo = get_user_by_username("rodrigo")
+        if not rodrigo:
+            password_hash = generate_password_hash("rodrigo123")
             create_user(
-                "admin",
+                "rodrigo",
                 password_hash,
-                role["id"],
-                "Admin",
-                "Principal",
-                "Administracion",
+                supervisor_role["id"],
+                "Rodrigo",
+                "Astudillo Gil",
+                "Municipio de Caldono Cauca",
                 "cedula_ciudadania",
-                "0000000000",
+                "",
             )
+        elif rodrigo.get("role") != ROLE_SUPERVISOR:
+            update_user_role(rodrigo["id"], supervisor_role["id"])
 
 
 _FIRST_PERSON_TO_THIRD_IRREGULAR = {
@@ -734,11 +837,17 @@ def generate():
         payload["obligaciones_directas_items_tercera"] = converted_items
     record_id = save_submission(payload)
     output_files = generate_documents(payload, record_id)
+    extra_pdf_files = _save_record_pdf_attachments(payload, record_id)
     files = {}
     for key, path in output_files.items():
         files[key] = {
             "name": os.path.basename(path),
             "url": url_for("download_file", record_id=record_id, doc_key=key),
+        }
+    for index, filename in enumerate(extra_pdf_files, start=1):
+        files[f"adjunto_pdf_{index}"] = {
+            "name": filename,
+            "url": url_for("download_extra_file", record_id=record_id, filename=filename),
         }
     return jsonify({"ok": True, "record_id": record_id, "files": files})
 
@@ -756,6 +865,24 @@ def download_file(record_id: int, doc_key: str):
         output_path,
         as_attachment=True,
         download_name=output_name,
+    )
+
+@app.route("/download/extra/<int:record_id>/<path:filename>")
+@login_required
+def download_extra_file(record_id: int, filename: str):
+    safe_name = os.path.basename(filename)
+    if safe_name != filename:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    expected_prefix = f"{record_id:05d}_"
+    if not safe_name.startswith(expected_prefix):
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    output_path = os.path.join(OUTPUT_DIR, safe_name)
+    if not os.path.isfile(output_path):
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    return send_file(
+        output_path,
+        as_attachment=True,
+        download_name=safe_name,
     )
 
 @app.route("/api/supervisor/reports")

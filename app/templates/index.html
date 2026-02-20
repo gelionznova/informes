@@ -6,7 +6,11 @@
     <title>Generador de Informes</title>
     <link rel="stylesheet" href="/static/style.css" />
   </head>
-  <body data-user-role="{{ user.role if user else '' }}">
+  <body
+    data-user-role="{{ user.role if user else '' }}"
+    data-output-dir="{{ output_dir|e }}"
+    data-user-name="{{ (user.username if user else '')|e }}"
+  >
     <main class="shell">
       <header class="hero admin-hero">
         <button
@@ -423,6 +427,30 @@
               <label
                 >Operador planilla<input name="operador_planilla" required
               /></label>
+              <div class="planilla-upload">
+                <span>PDF planilla</span>
+                <div class="planilla-upload-actions">
+                  <input
+                    type="file"
+                    id="aportesPlanillaPdfFile"
+                    accept="application/pdf,.pdf"
+                    hidden
+                  />
+                  <button type="button" class="secondary" id="addPlanillaPdf">
+                    Adjuntar PDF planilla
+                  </button>
+                  <button
+                    type="button"
+                    class="secondary"
+                    id="removePlanillaPdf"
+                  >
+                    Quitar
+                  </button>
+                  <span class="evidence-hint" id="aportesPlanillaPdfName"
+                    >Sin archivo adjunto.</span
+                  >
+                </div>
+              </div>
               <label
                 >Valor salud<input
                   name="aportes_valor_salud"
@@ -600,6 +628,16 @@
           >
             Evidencia PDF
           </button>
+          <button
+            type="button"
+            class="evidence-tab"
+            id="evidenceTabLink"
+            data-evidence-tab="link"
+            role="tab"
+            aria-selected="false"
+          >
+            Enlace y QR
+          </button>
         </div>
         <div
           class="evidence-pane is-active"
@@ -645,6 +683,30 @@
             </span>
           </div>
           <div id="evidencePdfs" class="evidence-pdfs"></div>
+        </div>
+        <div
+          class="evidence-pane"
+          id="evidencePaneLink"
+          role="tabpanel"
+          aria-hidden="true"
+        >
+          <div class="evidence-fields evidence-link-pane">
+            <div class="evidence-link-header">
+              <span>Enlaces / URL de evidencia</span>
+              <button
+                type="button"
+                class="secondary"
+                id="addEvidenceLinkField"
+              >
+                Agregar otro campo
+              </button>
+            </div>
+            <div class="evidence-links" id="evidenceLinks"></div>
+            <div class="evidence-hint">
+              Agrega uno o varios enlaces para esta misma actividad. Cada enlace
+              genera su codigo QR.
+            </div>
+          </div>
         </div>
         <div class="modal-actions">
           <button type="button" class="secondary" id="evidenceCancel">
@@ -701,7 +763,7 @@
       };
 
       const tabs = document.querySelectorAll(".tab");
-      const outputDir = "{{ output_dir|e }}";
+      const outputDir = document.body.dataset.outputDir || "";
       const panels = document.querySelectorAll(".panel");
       const statusEl = document.getElementById("status");
       const historyList = document.getElementById("historyList");
@@ -722,6 +784,19 @@
       );
       const evidenceCancelButton = document.getElementById("evidenceCancel");
       const evidenceSaveButton = document.getElementById("evidenceSave");
+      const addEvidenceLinkFieldButton = document.getElementById(
+        "addEvidenceLinkField",
+      );
+      const evidenceLinksContainer = document.getElementById("evidenceLinks");
+      const addPlanillaPdfButton = document.getElementById("addPlanillaPdf");
+      const removePlanillaPdfButton =
+        document.getElementById("removePlanillaPdf");
+      const aportesPlanillaPdfFileInput = document.getElementById(
+        "aportesPlanillaPdfFile",
+      );
+      const aportesPlanillaPdfName = document.getElementById(
+        "aportesPlanillaPdfName",
+      );
       const evidenceTabButtons = Array.from(
         document.querySelectorAll("[data-evidence-tab]"),
       );
@@ -767,6 +842,7 @@
           .replace(/'/g, "&#39;");
 
       const evidenceByRow = new Map();
+      let aportesPlanillaPdf = null;
       let activeEvidenceId = null;
       let activeEvidenceDraft = null;
       let activeEvidenceTab = "photos";
@@ -786,8 +862,37 @@
               pdfs: Array.isArray(value.pdfs)
                 ? JSON.parse(JSON.stringify(value.pdfs))
                 : [],
+              links: Array.isArray(value.links)
+                ? value.links
+                    .map((item) => String(item || "").trim())
+                    .filter(Boolean)
+                : String(value.link || "").trim()
+                  ? [String(value.link || "").trim()]
+                  : [],
+              link: String(value.link || "").trim(),
             }
-          : { images: [], groups: [], pdfs: [] };
+          : { images: [], groups: [], pdfs: [], links: [], link: "" };
+
+      const normalizeEvidenceLinks = (evidence) => {
+        if (!evidence) {
+          return;
+        }
+        const values = [];
+        if (Array.isArray(evidence.links)) {
+          evidence.links.forEach((item) => {
+            const normalized = String(item || "").trim();
+            if (normalized && !values.includes(normalized)) {
+              values.push(normalized);
+            }
+          });
+        }
+        const legacyLink = String(evidence.link || "").trim();
+        if (legacyLink && !values.includes(legacyLink)) {
+          values.unshift(legacyLink);
+        }
+        evidence.links = values;
+        evidence.link = values[0] || "";
+      };
 
       const normalizeEvidenceGroups = (evidence) => {
         const totalGroups = Math.ceil(evidence.images.length / 3);
@@ -800,7 +905,13 @@
       };
 
       const setEvidenceTab = (tabName) => {
-        activeEvidenceTab = tabName === "pdfs" ? "pdfs" : "photos";
+        if (tabName === "pdfs") {
+          activeEvidenceTab = "pdfs";
+        } else if (tabName === "link") {
+          activeEvidenceTab = "link";
+        } else {
+          activeEvidenceTab = "photos";
+        }
         evidenceTabButtons.forEach((button) => {
           const isActive = button.dataset.evidenceTab === activeEvidenceTab;
           button.classList.toggle("is-active", isActive);
@@ -809,6 +920,7 @@
 
         const photosPane = document.getElementById("evidencePanePhotos");
         const pdfsPane = document.getElementById("evidencePanePdfs");
+        const linkPane = document.getElementById("evidencePaneLink");
         if (photosPane) {
           const isPhotos = activeEvidenceTab === "photos";
           photosPane.classList.toggle("is-active", isPhotos);
@@ -819,6 +931,179 @@
           pdfsPane.classList.toggle("is-active", isPdfs);
           pdfsPane.setAttribute("aria-hidden", isPdfs ? "false" : "true");
         }
+        if (linkPane) {
+          const isLink = activeEvidenceTab === "link";
+          linkPane.classList.toggle("is-active", isLink);
+          linkPane.setAttribute("aria-hidden", isLink ? "false" : "true");
+        }
+      };
+
+      const parseAndValidateUrl = (value) => {
+        const url = String(value || "").trim();
+        if (!url) {
+          return { valid: true, normalized: "" };
+        }
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            return { valid: false, normalized: "" };
+          }
+          return { valid: true, normalized: parsed.toString() };
+        } catch (error) {
+          return { valid: false, normalized: "" };
+        }
+      };
+
+      const syncEvidenceLinksFromFields = ({ showError = false } = {}) => {
+        if (!activeEvidenceDraft || !evidenceLinksContainer) {
+          return false;
+        }
+        const values = [];
+        const fields = evidenceLinksContainer.querySelectorAll(
+          "input[data-evidence-link-input='true']",
+        );
+        for (const field of fields) {
+          const parsed = parseAndValidateUrl(field.value);
+          if (!parsed.valid) {
+            if (showError) {
+              field.focus();
+              openModal(
+                "Enlace invalido",
+                "<p>Ingresa una URL valida que inicie con http:// o https://</p>",
+              );
+            }
+            return false;
+          }
+          if (parsed.normalized && !values.includes(parsed.normalized)) {
+            values.push(parsed.normalized);
+          }
+        }
+        activeEvidenceDraft.links = values;
+        activeEvidenceDraft.link = values[0] || "";
+        return true;
+      };
+
+      const createEvidenceLinkField = (initialValue = "") => {
+        const row = document.createElement("div");
+        row.className = "evidence-link-field";
+
+        const inputWrap = document.createElement("div");
+        inputWrap.className = "evidence-link-field-input";
+
+        const input = document.createElement("input");
+        input.type = "url";
+        input.placeholder = "https://...";
+        input.value = String(initialValue || "");
+        input.setAttribute("data-evidence-link-input", "true");
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "secondary evidence-remove";
+        removeButton.textContent = "Quitar";
+
+        const qrWrap = document.createElement("div");
+        qrWrap.className = "evidence-link-qr";
+
+        const qrImage = document.createElement("img");
+        qrImage.alt = "Codigo QR";
+
+        const previewLink = document.createElement("a");
+        previewLink.target = "_blank";
+        previewLink.rel = "noopener noreferrer";
+
+        const updatePreview = () => {
+          const parsed = parseAndValidateUrl(input.value);
+          if (!parsed.valid || !parsed.normalized) {
+            qrImage.removeAttribute("src");
+            qrImage.style.display = "none";
+            previewLink.textContent = "";
+            previewLink.removeAttribute("href");
+            return;
+          }
+          qrImage.src =
+            "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" +
+            encodeURIComponent(parsed.normalized);
+          qrImage.style.display = "block";
+          previewLink.href = parsed.normalized;
+          previewLink.textContent = parsed.normalized;
+        };
+
+        input.addEventListener("input", () => {
+          updatePreview();
+          syncEvidenceLinksFromFields();
+          scheduleAutosave();
+        });
+
+        input.addEventListener("blur", () => {
+          const parsed = parseAndValidateUrl(input.value);
+          if (parsed.valid && parsed.normalized) {
+            input.value = parsed.normalized;
+            updatePreview();
+            syncEvidenceLinksFromFields();
+          }
+        });
+
+        removeButton.addEventListener("click", () => {
+          row.remove();
+          const remaining = evidenceLinksContainer.querySelectorAll(
+            ".evidence-link-field",
+          );
+          if (!remaining.length) {
+            evidenceLinksContainer.appendChild(createEvidenceLinkField(""));
+          }
+          syncEvidenceLinksFromFields();
+          scheduleAutosave();
+        });
+
+        inputWrap.appendChild(input);
+        inputWrap.appendChild(removeButton);
+        qrWrap.appendChild(qrImage);
+        qrWrap.appendChild(previewLink);
+        row.appendChild(inputWrap);
+        row.appendChild(qrWrap);
+
+        updatePreview();
+        return row;
+      };
+
+      const renderEvidenceLink = () => {
+        if (!activeEvidenceDraft || !evidenceLinksContainer) {
+          return;
+        }
+        normalizeEvidenceLinks(activeEvidenceDraft);
+        evidenceLinksContainer.innerHTML = "";
+        const links =
+          activeEvidenceDraft.links && activeEvidenceDraft.links.length
+            ? activeEvidenceDraft.links
+            : [""];
+        links.forEach((url) => {
+          evidenceLinksContainer.appendChild(createEvidenceLinkField(url));
+        });
+        syncEvidenceLinksFromFields();
+      };
+
+      const addEvidenceLinkField = () => {
+        if (!activeEvidenceDraft || !evidenceLinksContainer) {
+          return;
+        }
+        evidenceLinksContainer.appendChild(createEvidenceLinkField(""));
+        const fields = evidenceLinksContainer.querySelectorAll(
+          "input[data-evidence-link-input='true']",
+        );
+        const lastField = fields[fields.length - 1];
+        if (lastField) {
+          lastField.focus();
+        }
+      };
+
+      const renderPlanillaPdfState = () => {
+        if (!aportesPlanillaPdfName || !removePlanillaPdfButton) {
+          return;
+        }
+        aportesPlanillaPdfName.textContent = aportesPlanillaPdf
+          ? `Adjunto: ${aportesPlanillaPdf.name || "planilla.pdf"}`
+          : "Sin archivo adjunto.";
+        removePlanillaPdfButton.disabled = !aportesPlanillaPdf;
       };
 
       const renderPdfEvidence = () => {
@@ -871,6 +1156,8 @@
           empty.className = "evidence-empty";
           empty.textContent = "Aun no has agregado fotos.";
           evidenceGroups.appendChild(empty);
+          renderPdfEvidence();
+          renderEvidenceLink();
           return;
         }
 
@@ -939,6 +1226,7 @@
         });
 
         renderPdfEvidence();
+        renderEvidenceLink();
       };
 
       const openEvidenceModal = (row) => {
@@ -948,6 +1236,7 @@
         const evidenceId = row.dataset.evidenceId;
         activeEvidenceId = evidenceId;
         activeEvidenceDraft = cloneEvidence(evidenceByRow.get(evidenceId));
+        normalizeEvidenceLinks(activeEvidenceDraft);
         setEvidenceTab("photos");
         renderEvidenceModal();
         evidenceModal.classList.add("is-open");
@@ -1012,6 +1301,7 @@
           );
           activeEvidenceDraft.images.push(...dataUrls);
           renderEvidenceModal();
+          scheduleAutosave();
           evidenceFilesInput.value = "";
         });
       }
@@ -1042,7 +1332,47 @@
           );
           activeEvidenceDraft.pdfs.push(...dataUrls);
           renderPdfEvidence();
+          scheduleAutosave();
           evidencePdfFilesInput.value = "";
+        });
+      }
+
+      if (addEvidenceLinkFieldButton) {
+        addEvidenceLinkFieldButton.addEventListener("click", addEvidenceLinkField);
+      }
+
+      if (addPlanillaPdfButton && aportesPlanillaPdfFileInput) {
+        addPlanillaPdfButton.addEventListener("click", () => {
+          aportesPlanillaPdfFileInput.click();
+        });
+
+        aportesPlanillaPdfFileInput.addEventListener(
+          "change",
+          async (event) => {
+            const file = Array.from(event.target.files || []).find(
+              (item) =>
+                item.type === "application/pdf" ||
+                item.name.toLowerCase().endsWith(".pdf"),
+            );
+            if (!file) {
+              return;
+            }
+            aportesPlanillaPdf = {
+              name: file.name,
+              dataUrl: await readFileAsDataUrl(file),
+            };
+            renderPlanillaPdfState();
+            scheduleAutosave();
+            aportesPlanillaPdfFileInput.value = "";
+          },
+        );
+      }
+
+      if (removePlanillaPdfButton) {
+        removePlanillaPdfButton.addEventListener("click", () => {
+          aportesPlanillaPdf = null;
+          renderPlanillaPdfState();
+          scheduleAutosave();
         });
       }
 
@@ -1058,8 +1388,14 @@
             closeEvidenceModal();
             return;
           }
+          const linksOk = syncEvidenceLinksFromFields({ showError: true });
+          if (!linksOk) {
+            return;
+          }
           normalizeEvidenceGroups(activeEvidenceDraft);
+          normalizeEvidenceLinks(activeEvidenceDraft);
           evidenceByRow.set(activeEvidenceId, activeEvidenceDraft);
+          scheduleAutosave();
           closeEvidenceModal();
         });
       }
@@ -1075,6 +1411,7 @@
           }
         });
       }
+      renderPlanillaPdfState();
 
       const userRole = document.body.dataset.userRole || "";
       if (userRole === "contratista") {
@@ -1197,6 +1534,7 @@
       tabs.forEach((tab) => {
         tab.addEventListener("click", () => {
           activateTab(tab.dataset.tab);
+          scheduleAutosave();
         });
       });
 
@@ -1639,7 +1977,9 @@
         );
       }
 
-      const autosaveKey = `draft_${tabId}`;
+      const userName = document.body.dataset.userName || "anon";
+      const autosaveKey = `draft_v2_${window.location.pathname}_${userRole}_${userName}`;
+      const autosaveLegacyKey = `draft_${tabId}`;
       const autosaveIgnoreNames = new Set([
         "obligaciones_directas_item",
         "obligaciones_directas_ejecutadas_item",
@@ -1650,7 +1990,7 @@
       ]);
       let autosaveTimer = null;
 
-      const buildDraftData = () => {
+      const buildDraftData = ({ includeBinaryEvidence = true } = {}) => {
         const data = {};
         const formData = new FormData(form);
         for (const [key, value] of formData.entries()) {
@@ -1676,6 +2016,35 @@
             actividad_ejecutada: ejecutada ? ejecutada.value : "",
             aporta_evidencias: evidencias ? evidencias.value : "",
           });
+          const evidenceId = row.dataset.evidenceId;
+          const evidence = evidenceId ? evidenceByRow.get(evidenceId) : null;
+          const lastItem = directasItems[directasItems.length - 1];
+          if (
+            evidence &&
+            lastItem &&
+            String(lastItem.aporta_evidencias || "").toUpperCase() === "SI"
+          ) {
+            if (includeBinaryEvidence) {
+              lastItem.evidencias = cloneEvidence(evidence);
+            } else {
+              const fallbackLinks = Array.isArray(evidence.links)
+                ? evidence.links
+                    .map((value) => String(value || "").trim())
+                    .filter(Boolean)
+                : String(evidence.link || "").trim()
+                  ? [String(evidence.link || "").trim()]
+                  : [];
+              lastItem.evidencias = {
+                images: [],
+                groups: Array.isArray(evidence.groups)
+                  ? JSON.parse(JSON.stringify(evidence.groups))
+                  : [],
+                pdfs: [],
+                links: fallbackLinks,
+                link: fallbackLinks[0] || "",
+              };
+            }
+          }
         });
         data.obligaciones_directas_items = directasItems;
 
@@ -1696,15 +2065,46 @@
         });
         data.actas_parciales = actasItems;
 
+        if (aportesPlanillaPdf && aportesPlanillaPdf.dataUrl) {
+          if (includeBinaryEvidence) {
+            data.aportes_planilla_pdf = {
+              name: aportesPlanillaPdf.name,
+              dataUrl: aportesPlanillaPdf.dataUrl,
+            };
+          } else {
+            data.aportes_planilla_pdf = {
+              name: aportesPlanillaPdf.name,
+              dataUrl: "",
+            };
+          }
+        }
+
         return data;
       };
 
       const saveDraft = () => {
         const payload = {
-          data: buildDraftData(),
+          data: buildDraftData({ includeBinaryEvidence: true }),
           activeTab: document.querySelector(".tab.active")?.dataset.tab || "t1",
+          savedAt: Date.now(),
+          includeBinaryEvidence: true,
         };
-        localStorage.setItem(autosaveKey, JSON.stringify(payload));
+        try {
+          localStorage.setItem(autosaveKey, JSON.stringify(payload));
+        } catch (error) {
+          const fallbackPayload = {
+            data: buildDraftData({ includeBinaryEvidence: false }),
+            activeTab:
+              document.querySelector(".tab.active")?.dataset.tab || "t1",
+            savedAt: Date.now(),
+            includeBinaryEvidence: false,
+          };
+          try {
+            localStorage.setItem(autosaveKey, JSON.stringify(fallbackPayload));
+          } catch (fallbackError) {
+            return;
+          }
+        }
       };
 
       const scheduleAutosave = () => {
@@ -1715,7 +2115,9 @@
       };
 
       const loadDraft = () => {
-        const raw = localStorage.getItem(autosaveKey);
+        const raw =
+          localStorage.getItem(autosaveKey) ||
+          localStorage.getItem(autosaveLegacyKey);
         if (!raw) {
           return null;
         }
@@ -1728,6 +2130,7 @@
 
       const clearDraft = () => {
         localStorage.removeItem(autosaveKey);
+        localStorage.removeItem(autosaveLegacyKey);
       };
 
       const meses = [
@@ -2408,6 +2811,16 @@
         if (!data.supervisor_cc) {
           syncSupervisorMeta(false);
         }
+        const planillaPdf = data.aportes_planilla_pdf;
+        if (planillaPdf && typeof planillaPdf === "object") {
+          aportesPlanillaPdf = {
+            name: String(planillaPdf.name || "PLANILLA.pdf"),
+            dataUrl: String(planillaPdf.dataUrl || planillaPdf.data_url || ""),
+          };
+        } else {
+          aportesPlanillaPdf = null;
+        }
+        renderPlanillaPdfState();
 
         [
           "fecha_contrato",
@@ -2465,7 +2878,10 @@
         if (draftPayload.activeTab) {
           activateTab(draftPayload.activeTab);
         }
+        saveDraft();
       }
+
+      window.addEventListener("beforeunload", saveDraft);
 
       historyList.addEventListener("click", async (event) => {
         const target = event.target;
@@ -2565,7 +2981,17 @@
               : 0;
           const pdfCount =
             evidence && Array.isArray(evidence.pdfs) ? evidence.pdfs.length : 0;
-          if (!evidence || imageCount + pdfCount === 0) {
+          const linksCount =
+            evidence && Array.isArray(evidence.links)
+              ? evidence.links.filter((item) => String(item || "").trim())
+                  .length
+              : 0;
+          const hasLegacyLink =
+            evidence && typeof evidence.link === "string"
+              ? Boolean(evidence.link.trim())
+              : false;
+          const hasLink = linksCount > 0 || hasLegacyLink;
+          if (!evidence || (imageCount + pdfCount === 0 && !hasLink)) {
             missingEvidence.push(index + 1);
           }
         });
@@ -2676,6 +3102,9 @@
         data.obligaciones_generales_items = [];
         data.obligaciones_generales = "";
         data.obligaciones_generales_ejecutadas = "";
+        if (aportesPlanillaPdf && aportesPlanillaPdf.dataUrl) {
+          data.aportes_planilla_pdf = aportesPlanillaPdf;
+        }
         statusEl.textContent = "Generando...";
 
         const res = await fetch("/generate", {

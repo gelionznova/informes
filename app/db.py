@@ -1,10 +1,163 @@
 import json
 import os
+import shutil
 import sqlite3
+import sys
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "data", "app.db")
+
+def _resolve_data_root() -> str:
+    if getattr(sys, "frozen", False):
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if local_appdata:
+            return os.path.join(local_appdata, "GeneradorInformes")
+        return os.path.join(os.path.expanduser("~"), "GeneradorInformes")
+    return BASE_DIR
+
+DATA_ROOT = _resolve_data_root()
+DB_PATH = os.path.join(DATA_ROOT, "data", "app.db")
+
+def _seed_db_candidates() -> list[str]:
+    if not getattr(sys, "frozen", False):
+        return []
+
+    candidates: list[str] = []
+    meipass = getattr(sys, "_MEIPASS", "")
+    if meipass:
+        candidates.append(os.path.join(meipass, "data", "app.db"))
+
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    candidates.append(os.path.join(exe_dir, "data", "app.db"))
+    candidates.append(os.path.join(os.path.dirname(exe_dir), "app", "data", "app.db"))
+
+    resolved = []
+    seen = set()
+    for path in candidates:
+        full_path = os.path.abspath(path)
+        if full_path == os.path.abspath(DB_PATH):
+            continue
+        if full_path in seen:
+            continue
+        seen.add(full_path)
+        resolved.append(full_path)
+    return resolved
+
+def _first_existing_seed_db() -> str | None:
+    for candidate in _seed_db_candidates():
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+def _safe_count(conn: sqlite3.Connection, table: str) -> int:
+    try:
+        row = conn.execute(f"SELECT COUNT(1) FROM {table}").fetchone()
+        return int(row[0]) if row else 0
+    except sqlite3.Error:
+        return 0
+
+def _merge_seed_data(seed_db_path: str) -> None:
+    if not os.path.exists(seed_db_path):
+        return
+
+    if not os.path.exists(DB_PATH):
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        shutil.copy2(seed_db_path, DB_PATH)
+        return
+
+    with sqlite3.connect(DB_PATH) as target_conn, sqlite3.connect(seed_db_path) as seed_conn:
+        target_conn.execute("PRAGMA foreign_keys = ON")
+        target_conn.executescript(SCHEMA_SQL)
+        _ensure_user_columns(target_conn)
+
+        seed_conn.row_factory = sqlite3.Row
+        target_conn.row_factory = sqlite3.Row
+
+        target_submissions = _safe_count(target_conn, "submissions")
+        if target_submissions == 0:
+            seed_rows = seed_conn.execute(
+                "SELECT created_at, data_json FROM submissions ORDER BY id ASC"
+            ).fetchall()
+            if seed_rows:
+                target_conn.executemany(
+                    "INSERT INTO submissions (created_at, data_json) VALUES (?, ?)",
+                    [(row["created_at"], row["data_json"]) for row in seed_rows],
+                )
+
+        existing_roles = {
+            row["name"]: row["id"]
+            for row in target_conn.execute("SELECT id, name FROM roles").fetchall()
+        }
+        seed_roles = [
+            row["name"]
+            for row in seed_conn.execute("SELECT name FROM roles ORDER BY id ASC").fetchall()
+            if row["name"]
+        ]
+        for role_name in seed_roles:
+            if role_name not in existing_roles:
+                cur = target_conn.cursor()
+                cur.execute("INSERT INTO roles (name) VALUES (?)", (role_name,))
+                existing_roles[role_name] = cur.lastrowid
+
+        existing_users = {
+            row["username"]
+            for row in target_conn.execute("SELECT username FROM users").fetchall()
+        }
+        seed_users = seed_conn.execute(
+            """
+            SELECT
+                users.username,
+                users.password_hash,
+                users.first_name,
+                users.last_name,
+                users.dependency,
+                users.doc_type,
+                users.doc_number,
+                users.created_at,
+                roles.name AS role_name
+            FROM users
+            JOIN roles ON roles.id = users.role_id
+            ORDER BY users.id ASC
+            """
+        ).fetchall()
+
+        for user in seed_users:
+            username = user["username"]
+            role_name = user["role_name"]
+            if not username or username in existing_users:
+                continue
+            role_id = existing_roles.get(role_name)
+            if not role_id:
+                continue
+            target_conn.execute(
+                """
+                INSERT INTO users (
+                    username,
+                    password_hash,
+                    role_id,
+                    first_name,
+                    last_name,
+                    dependency,
+                    doc_type,
+                    doc_number,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    username,
+                    user["password_hash"],
+                    role_id,
+                    user["first_name"] or "",
+                    user["last_name"] or "",
+                    user["dependency"] or "",
+                    user["doc_type"] or "",
+                    user["doc_number"] or "",
+                    user["created_at"] or datetime.utcnow().isoformat(),
+                ),
+            )
+            existing_users.add(username)
+
+        target_conn.commit()
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS submissions (
@@ -34,7 +187,11 @@ CREATE TABLE IF NOT EXISTS users (
 """
 
 def init_db() -> None:
-    os.makedirs(os.path.join(BASE_DIR, "data"), exist_ok=True)
+    seed_db_path = _first_existing_seed_db()
+    if seed_db_path:
+        _merge_seed_data(seed_db_path)
+
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(SCHEMA_SQL)

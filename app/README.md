@@ -15,8 +15,11 @@ Los archivos se guardan en `app/output/` con prefijo del consecutivo (`00001_...
 
 - Inicio de sesión con roles (`super_admin`, `supervisor`, `contratista`, `por_asignar`).
 - Formulario web para captura de datos del informe.
+- Autoguardado de progreso del formulario (incluye pestaña activa y recuperación automática por usuario).
 - Generación de documentos DOCX con plantillas en `app/docx_templates/`.
-- Historial de envíos en SQLite (`app/data/app.db`).
+- Historial de envíos en SQLite.
+  - Desarrollo: `app/data/app.db`
+  - Ejecutable `.exe`: `%LOCALAPPDATA%\\GeneradorInformes\\data\\app.db`
 - Panel de supervisión (listar, revisar, aprobar/rechazar informes).
 - Panel de administración para gestión de roles y usuarios.
 
@@ -151,6 +154,9 @@ Estructura de `evidencias`:
 - `groups`: lista de metadatos por bloque (máx. 3 imágenes por bloque):
   - `description`
   - `date`
+- `pdfs`: lista de archivos PDF en base64 (`name`, `dataUrl`)
+- `links`: lista de enlaces (URLs) para generar QR en `ANEXO.docx`
+- `link`: compatibilidad con versiones anteriores (primer enlace)
 
 ### Seguridad social
 
@@ -213,6 +219,92 @@ py -3.11 -m venv .venv_clean311
 ```
 
 Salida esperada: `dist/app.exe`.
+
+### Script automatizado (build + firma opcional)
+
+También puedes usar el script de la raíz del proyecto:
+
+```powershell
+.\scripts\build-and-sign.ps1
+```
+
+Con firma digital (selección automática de certificado):
+
+```powershell
+.\scripts\build-and-sign.ps1 -Sign
+```
+
+Con huella específica de certificado:
+
+```powershell
+.\scripts\build-and-sign.ps1 -Sign -CertificateThumbprint "TU_HUELLA_SHA1"
+```
+
+## Solución de problemas frecuentes
+
+### Error en consola: `Invalid Unicode escape sequence` y `userRole is not defined`
+
+Si aparece en algunos equipos al abrir la app, normalmente es por JavaScript cacheado por el navegador.
+
+Pasos:
+
+1. Cerrar la app.
+2. Limpiar caché del navegador usado por la app (`Ctrl+Shift+R` o borrar datos del sitio).
+3. Volver a abrir el ejecutable actualizado.
+
+Notas:
+
+- `userRole is not defined` suele ser un error en cascada cuando el script se corta antes por un `SyntaxError`.
+- Si persiste, abrir DevTools y recargar forzado para confirmar que el archivo JS nuevo quedó aplicado.
+
+### Mensaje Windows: "No se puede ejecutar esta aplicación en el equipo"
+
+Causas más comunes:
+
+- Arquitectura incompatible (ejecutable x64 en Windows x86).
+- Ejecutable incompleto/corrupto al copiar o descargar.
+
+Checklist de validación:
+
+1. Verificar arquitectura del equipo destino (`Configuración > Sistema > Acerca de > Tipo de sistema`).
+2. Construir el `.exe` con Python de la misma arquitectura del destino.
+3. Copiar de nuevo el archivo completo (mejor en `.zip`) y reintentar.
+4. Si está en red/correo, probar desbloquear archivo (`Propiedades > Desbloquear`).
+
+Recomendación práctica de distribución:
+
+- Publicar dos builds: `app-x64.exe` y `app-x86.exe` (si aún tienes equipos x86).
+- Firmar ambos ejecutables para reducir bloqueos por seguridad.
+
+## Aviso de Windows SmartScreen ("Windows protegió su PC")
+
+Es normal que aparezca en algunos equipos cuando el ejecutable no está firmado o no tiene reputación suficiente en Microsoft Defender SmartScreen.
+
+Esto puede variar entre equipos por políticas de seguridad, versión de Windows/Defender y origen del archivo (por ejemplo, descargado desde internet o copiado desde red).
+
+### Recomendación para producción
+
+Firmar `dist/app.exe` con un certificado de firma de código para que Windows pueda identificar al editor.
+
+Pasos generales:
+
+1. Obtener un certificado de firma de código (OV o EV) de una entidad certificadora.
+2. Instalar el certificado en Windows (almacén `Personal` del usuario o del equipo que firma).
+3. Firmar el ejecutable con `signtool`.
+4. Verificar la firma antes de distribuir.
+
+Ejemplo con `signtool`:
+
+```powershell
+signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a dist\app.exe
+signtool verify /pa /v dist\app.exe
+```
+
+Notas:
+
+- EV suele obtener reputación más rápido en SmartScreen.
+- Si se recompila el `.exe` continuamente, cada binario cambia y puede volver a aparecer la advertencia hasta consolidar reputación.
+- En ambientes corporativos, también se puede permitir el ejecutable por políticas (GPO/Intune/Defender).
 
 ## Notas operativas
 

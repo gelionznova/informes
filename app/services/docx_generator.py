@@ -2,10 +2,12 @@ import base64
 import io
 import math
 import os
+from urllib.parse import quote
+from urllib.request import urlopen
 from docxtpl import DocxTemplate
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Inches
+from docx.shared import Cm
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
@@ -102,6 +104,21 @@ def _decode_data_url(value: str) -> bytes | None:
     except (ValueError, base64.binascii.Error):
         return None
 
+def _fetch_qr_image_bytes(link: str) -> bytes | None:
+    value = str(link or "").strip()
+    if not value:
+        return None
+    qr_url = (
+        "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data="
+        + quote(value, safe="")
+    )
+    try:
+        with urlopen(qr_url, timeout=8) as response:
+            content = response.read()
+            return content if content else None
+    except Exception:
+        return None
+
 def _build_anexo_document(context: dict, out_path: str) -> None:
     doc = Document()
     doc.add_heading("ANEXO", level=1)
@@ -128,9 +145,19 @@ def _build_anexo_document(context: dict, out_path: str) -> None:
         images = evidencias.get("images") or []
         groups = evidencias.get("groups") or []
         pdfs = evidencias.get("pdfs") or []
+        links = []
+        raw_links = evidencias.get("links")
+        if isinstance(raw_links, list):
+            for value in raw_links:
+                normalized = str(value or "").strip()
+                if normalized and normalized not in links:
+                    links.append(normalized)
+        legacy_link = str(evidencias.get("link") or "").strip()
+        if legacy_link and legacy_link not in links:
+            links.append(legacy_link)
         total_groups = max(len(groups), math.ceil(len(images) / 3))
 
-        if not images and not pdfs:
+        if not images and not pdfs and not links:
             doc.add_paragraph("Evidencias: Sin evidencia.")
             doc.add_paragraph("")
             continue
@@ -148,9 +175,6 @@ def _build_anexo_document(context: dict, out_path: str) -> None:
                     if not image_bytes:
                         continue
                     run = table.rows[0].cells[cell_index].paragraphs[0].add_run()
-                    # Tamaño fijo: 4x4 cm por imagen
-                    from docx.shared import Cm
-
                     run.add_picture(
                         io.BytesIO(image_bytes), width=Cm(4), height=Cm(4)
                     )
@@ -183,6 +207,28 @@ def _build_anexo_document(context: dict, out_path: str) -> None:
                 paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         else:
             paragraph = doc.add_paragraph("Evidencia PDF: Sin evidencia.")
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+        if links:
+            paragraph = doc.add_paragraph("Enlaces de evidencia:")
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            for link_index, link in enumerate(links, start=1):
+                paragraph = doc.add_paragraph(f"{link_index}. {link}")
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                qr_bytes = _fetch_qr_image_bytes(link)
+                if qr_bytes:
+                    qr_paragraph = doc.add_paragraph()
+                    qr_paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    qr_paragraph.add_run().add_picture(
+                        io.BytesIO(qr_bytes), width=Cm(4), height=Cm(4)
+                    )
+                else:
+                    paragraph = doc.add_paragraph(
+                        "Codigo QR no disponible (sin conexion en el momento de generar)."
+                    )
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        else:
+            paragraph = doc.add_paragraph("Enlace de evidencia: Sin evidencia.")
             paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
         doc.add_paragraph("")
