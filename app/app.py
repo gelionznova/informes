@@ -5,8 +5,12 @@ from datetime import datetime
 
 
 import os
+import io
+import json
+import hashlib
 import re
 import sys
+import tempfile
 import threading
 import unicodedata
 import webbrowser
@@ -31,6 +35,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from db import (
     init_db,
     save_submission,
+    save_submission_with_created_at,
     update_submission_data,
     list_submissions,
     get_submission,
@@ -51,6 +56,9 @@ from db import (
     has_any_users,
     get_user_by_id,
     list_users_by_role,
+    get_database_path,
+    get_backups_dir,
+    import_database_file,
 )
 from services.docx_generator import generate_documents, TEMPLATE_FILES, OUTPUT_DIR
 
@@ -706,6 +714,57 @@ def _build_supervisor_detail(record_id: int) -> tuple[dict | None, int]:
         200,
     )
 
+def _is_contractor_user(user: dict | None) -> bool:
+    return bool(user and user.get("role") == ROLE_CONTRATISTA)
+
+def _extract_submission_owner(data: dict | None) -> tuple[str, str]:
+    if not isinstance(data, dict):
+        return "", ""
+    meta = data.get("_app_meta")
+    if not isinstance(meta, dict):
+        return "", ""
+    owner_id = str(meta.get("created_by_id") or "").strip()
+    owner_username = str(meta.get("created_by_username") or "").strip().lower()
+    return owner_id, owner_username
+
+def _set_submission_owner(data: dict, user: dict) -> None:
+    meta = data.get("_app_meta")
+    if not isinstance(meta, dict):
+        meta = {}
+    meta["created_by_id"] = str(user.get("id") or "").strip()
+    meta["created_by_username"] = str(user.get("username") or "").strip()
+    data["_app_meta"] = meta
+
+def _is_submission_owned_by_user(item: dict, user: dict | None) -> bool:
+    if not user:
+        return False
+    data = item.get("data") if isinstance(item, dict) else None
+    owner_id, owner_username = _extract_submission_owner(data)
+    user_id = str(user.get("id") or "").strip()
+    username = str(user.get("username") or "").strip().lower()
+    if owner_id and user_id and owner_id == user_id:
+        return True
+    if owner_username and username and owner_username == username:
+        return True
+    return False
+
+def _submission_fingerprint(data: dict) -> str:
+    payload = dict(data)
+    meta = payload.get("_app_meta")
+    if isinstance(meta, dict):
+        sanitized_meta = dict(meta)
+        sanitized_meta.pop("imported_at", None)
+        payload["_app_meta"] = sanitized_meta
+    raw = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+def _list_contractor_submissions(user: dict) -> list[dict]:
+    return [
+        item
+        for item in list_submissions(limit=0)
+        if _is_submission_owned_by_user(item, user)
+    ]
+
 @app.route("/")
 @login_required
 def index():
@@ -775,7 +834,10 @@ def logout():
 @app.route("/history")
 @login_required
 def history():
+    user = _current_user()
     items = list_submissions()
+    if _is_contractor_user(user):
+        items = [item for item in items if _is_submission_owned_by_user(item, user)]
     return jsonify({"ok": True, "items": items})
 
 @app.route("/history/<int:record_id>")
@@ -784,11 +846,19 @@ def history_item(record_id: int):
     item = get_submission(record_id)
     if not item:
         return jsonify({"ok": False, "error": "not_found"}), 404
+    user = _current_user()
+    if _is_contractor_user(user) and not _is_submission_owned_by_user(item, user):
+        return jsonify({"ok": False, "error": "not_found"}), 404
     return jsonify({"ok": True, "item": item})
 
 @app.route("/history/<int:record_id>/delete", methods=["POST"])
 @login_required
 def history_delete(record_id: int):
+    user = _current_user()
+    if _is_contractor_user(user):
+        item = get_submission(record_id)
+        if not item or not _is_submission_owned_by_user(item, user):
+            return jsonify({"ok": False, "error": "not_found"}), 404
     if delete_submission(record_id):
         return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "not_found"}), 404
@@ -810,10 +880,14 @@ def debug_static():
 @login_required
 def generate():
     payload = request.get_json(force=True)
+    user = _current_user() or {}
+    if _is_contractor_user(user):
+        _set_submission_owner(payload, user)
     total_aportes = (
         _parse_money(payload.get("aportes_valor_salud", ""))
         + _parse_money(payload.get("aportes_valor_pension", ""))
         + _parse_money(payload.get("aportes_valor_riesgos", ""))
+        + _parse_money(payload.get("aportes_valor_caja_compensacion_familiar", ""))
     )
     if total_aportes and not payload.get("total_aportes"):
         payload["total_aportes"] = _format_currency(total_aportes)
@@ -850,6 +924,124 @@ def generate():
             "url": url_for("download_extra_file", record_id=record_id, filename=filename),
         }
     return jsonify({"ok": True, "record_id": record_id, "files": files})
+
+@app.route("/contractor/history/export")
+@login_required
+def contractor_export_history():
+    user = _current_user()
+    if not _is_contractor_user(user):
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    records = _list_contractor_submissions(user)
+    payload = {
+        "format": "contractor_submissions_v1",
+        "exported_at": datetime.utcnow().replace(microsecond=0).isoformat(),
+        "contractor": {
+            "id": str(user.get("id") or ""),
+            "username": str(user.get("username") or ""),
+        },
+        "items": [
+            {
+                "created_at": item.get("created_at"),
+                "data": item.get("data") or {},
+            }
+            for item in records
+        ],
+    }
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    username = re.sub(r"[^a-zA-Z0-9_-]", "_", str(user.get("username") or "usuario"))
+    content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    return send_file(
+        io.BytesIO(content),
+        mimetype="application/json",
+        as_attachment=True,
+        download_name=f"mis_registros_{username}_{timestamp}.json",
+    )
+
+@app.route("/contractor/history/import", methods=["POST"])
+@login_required
+def contractor_import_history():
+    user = _current_user()
+    if not _is_contractor_user(user):
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    upload = request.files.get("contractor_backup_file")
+    if not upload or not upload.filename:
+        return jsonify({"ok": False, "error": "missing_file", "message": "Selecciona un archivo JSON."}), 400
+
+    filename = upload.filename.strip().lower()
+    if not filename.endswith(".json"):
+        return jsonify({"ok": False, "error": "invalid_format", "message": "Formato no permitido. Usa un archivo .json."}), 400
+
+    try:
+        backup_data = json.load(upload.stream)
+    except Exception:
+        return jsonify({"ok": False, "error": "invalid_json", "message": "El archivo no contiene JSON válido."}), 400
+
+    if not isinstance(backup_data, dict):
+        return jsonify({"ok": False, "error": "invalid_payload", "message": "Formato de respaldo inválido."}), 400
+
+    if backup_data.get("format") != "contractor_submissions_v1":
+        return jsonify({"ok": False, "error": "unsupported_format", "message": "Formato de respaldo no compatible."}), 400
+
+    backup_contractor = backup_data.get("contractor") if isinstance(backup_data.get("contractor"), dict) else {}
+    backup_username = str(backup_contractor.get("username") or "").strip().lower()
+    current_username = str(user.get("username") or "").strip().lower()
+    if backup_username and current_username and backup_username != current_username:
+        return jsonify(
+            {
+                "ok": False,
+                "error": "owner_mismatch",
+                "message": "El respaldo pertenece a otro usuario contratista.",
+            }
+        ), 400
+
+    items = backup_data.get("items")
+    if not isinstance(items, list):
+        return jsonify({"ok": False, "error": "invalid_items", "message": "El respaldo no contiene una lista de registros válida."}), 400
+
+    existing_fingerprints = {
+        _submission_fingerprint(item.get("data") or {})
+        for item in _list_contractor_submissions(user)
+    }
+
+    imported = 0
+    skipped = 0
+    invalid = 0
+    for item in items:
+        if not isinstance(item, dict):
+            invalid += 1
+            continue
+        data = item.get("data")
+        if not isinstance(data, dict):
+            invalid += 1
+            continue
+
+        normalized = dict(data)
+        _set_submission_owner(normalized, user)
+        meta = normalized.get("_app_meta") if isinstance(normalized.get("_app_meta"), dict) else {}
+        meta["imported_at"] = datetime.utcnow().replace(microsecond=0).isoformat()
+        normalized["_app_meta"] = meta
+
+        fingerprint = _submission_fingerprint(normalized)
+        if fingerprint in existing_fingerprints:
+            skipped += 1
+            continue
+
+        created_at = str(item.get("created_at") or "").strip() or None
+        save_submission_with_created_at(normalized, created_at=created_at)
+        existing_fingerprints.add(fingerprint)
+        imported += 1
+
+    return jsonify(
+        {
+            "ok": True,
+            "imported": imported,
+            "skipped": skipped,
+            "invalid": invalid,
+            "message": f"Importación completada. Nuevos: {imported}, omitidos: {skipped}, inválidos: {invalid}.",
+        }
+    )
 
 @app.route("/download/<int:record_id>/<doc_key>")
 @login_required
@@ -978,12 +1170,72 @@ def _render_admin(message: str | None = None, error: str | None = None):
         message=message,
         error=error,
         user=_current_user(),
+        db_path=get_database_path(),
+        backups_dir=get_backups_dir(),
     )
 
 @app.route("/admin")
 @admin_required
 def admin_panel():
     return _render_admin()
+
+@app.route("/admin/database/export")
+@admin_required
+def admin_export_database():
+    db_path = get_database_path()
+    if not os.path.isfile(db_path):
+        init_db()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return send_file(
+        db_path,
+        as_attachment=True,
+        download_name=f"generador_informes_{timestamp}.db",
+    )
+
+@app.route("/admin/database/import", methods=["POST"])
+@admin_required
+def admin_import_database():
+    upload = request.files.get("database_file")
+    if not upload or not upload.filename:
+        return _render_admin(error="Selecciona un archivo .db para importar.")
+
+    filename = upload.filename.strip().lower()
+    if not (filename.endswith(".db") or filename.endswith(".sqlite") or filename.endswith(".sqlite3")):
+        return _render_admin(error="Formato no permitido. Usa un archivo .db, .sqlite o .sqlite3.")
+
+    db_dir = os.path.dirname(get_database_path())
+    os.makedirs(db_dir, exist_ok=True)
+    temp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=".db",
+            prefix="upload_",
+            dir=db_dir,
+            delete=False,
+        ) as temp_file:
+            temp_path = temp_file.name
+        upload.save(temp_path)
+
+        ok, backup_path, error = import_database_file(temp_path)
+        if not ok:
+            return _render_admin(error=error or "No se pudo importar la base de datos.")
+
+        _ensure_default_roles_and_admin()
+        if backup_path:
+            backup_name = os.path.basename(backup_path)
+            return _render_admin(
+                message=(
+                    "Base de datos importada correctamente. "
+                    f"Se creó respaldo automático: {backup_name}."
+                )
+            )
+        return _render_admin(message="Base de datos importada correctamente.")
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 @app.route("/admin/roles", methods=["POST"])
 @admin_required

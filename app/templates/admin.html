@@ -34,6 +34,9 @@
               Crear usuario
             </button>
             <button class="admin-tab" data-tab="usuarios">Usuarios</button>
+            <button class="admin-tab" data-tab="base-datos">
+              Base de datos
+            </button>
           </aside>
 
           <div class="admin-panels">
@@ -197,6 +200,44 @@
                   </div>
                   {% endfor %}
                 </div>
+              </div>
+            </div>
+
+            <div class="admin-panel" id="base-datos">
+              <div class="admin-card">
+                <h2>Respaldo y restauración</h2>
+                <p>
+                  Ruta actual de base de datos: <strong>{{ db_path }}</strong>
+                </p>
+                <p>
+                  Carpeta de respaldos automáticos:
+                  <strong>{{ backups_dir }}</strong>
+                </p>
+                <div class="admin-actions">
+                  <a class="primary" href="/admin/database/export"
+                    >Exportar base de datos</a
+                  >
+                </div>
+                <form
+                  method="post"
+                  action="/admin/database/import"
+                  enctype="multipart/form-data"
+                  class="admin-form"
+                  data-confirm="Importar reemplazará la base de datos actual. Se creará un respaldo automático. ¿Deseas continuar?"
+                >
+                  <label>
+                    Importar base de datos
+                    <input
+                      type="file"
+                      name="database_file"
+                      accept=".db,.sqlite,.sqlite3"
+                      required
+                    />
+                  </label>
+                  <button class="secondary" type="submit">
+                    Importar y reemplazar
+                  </button>
+                </form>
               </div>
             </div>
           </div>

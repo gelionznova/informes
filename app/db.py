@@ -3,6 +3,7 @@ import os
 import shutil
 import sqlite3
 import sys
+import tempfile
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +18,9 @@ def _resolve_data_root() -> str:
 
 DATA_ROOT = _resolve_data_root()
 DB_PATH = os.path.join(DATA_ROOT, "data", "app.db")
+BACKUPS_DIR = os.path.join(DATA_ROOT, "backups")
+DB_SCHEMA_VERSION = 1
+REQUIRED_TABLES = {"submissions", "roles", "users"}
 
 def _seed_db_candidates() -> list[str]:
     if not getattr(sys, "frozen", False):
@@ -49,13 +53,6 @@ def _first_existing_seed_db() -> str | None:
             return candidate
     return None
 
-def _safe_count(conn: sqlite3.Connection, table: str) -> int:
-    try:
-        row = conn.execute(f"SELECT COUNT(1) FROM {table}").fetchone()
-        return int(row[0]) if row else 0
-    except sqlite3.Error:
-        return 0
-
 def _merge_seed_data(seed_db_path: str) -> None:
     if not os.path.exists(seed_db_path):
         return
@@ -73,16 +70,9 @@ def _merge_seed_data(seed_db_path: str) -> None:
         seed_conn.row_factory = sqlite3.Row
         target_conn.row_factory = sqlite3.Row
 
-        target_submissions = _safe_count(target_conn, "submissions")
-        if target_submissions == 0:
-            seed_rows = seed_conn.execute(
-                "SELECT created_at, data_json FROM submissions ORDER BY id ASC"
-            ).fetchall()
-            if seed_rows:
-                target_conn.executemany(
-                    "INSERT INTO submissions (created_at, data_json) VALUES (?, ?)",
-                    [(row["created_at"], row["data_json"]) for row in seed_rows],
-                )
+        # Do not merge seeded submissions into an existing DB.
+        # If we reinsert when submissions is empty, deleted history entries
+        # can reappear after restarting the app.
 
         existing_roles = {
             row["name"]: row["id"]
@@ -196,7 +186,93 @@ def init_db() -> None:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(SCHEMA_SQL)
         _ensure_user_columns(conn)
+        _set_schema_version(conn)
         conn.commit()
+
+def _set_schema_version(conn: sqlite3.Connection) -> None:
+    conn.execute(f"PRAGMA user_version = {DB_SCHEMA_VERSION}")
+
+def get_database_path() -> str:
+    return DB_PATH
+
+def get_backups_dir() -> str:
+    return BACKUPS_DIR
+
+def create_database_backup(prefix: str = "backup") -> str:
+    if not os.path.isfile(DB_PATH):
+        raise FileNotFoundError("database_not_found")
+    os.makedirs(BACKUPS_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"{prefix}_{timestamp}.db"
+    backup_path = os.path.join(BACKUPS_DIR, backup_name)
+    shutil.copy2(DB_PATH, backup_path)
+    return backup_path
+
+def _validate_database_file(db_file_path: str) -> tuple[bool, str | None]:
+    if not os.path.isfile(db_file_path):
+        return False, "El archivo de base de datos no existe."
+
+    try:
+        with sqlite3.connect(db_file_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("PRAGMA integrity_check").fetchone()
+            if not row or str(row[0]).lower() != "ok":
+                return False, "La base de datos está corrupta o incompleta."
+
+            tables = {
+                str(item[0])
+                for item in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            missing = sorted(REQUIRED_TABLES.difference(tables))
+            if missing:
+                return False, "Faltan tablas requeridas: " + ", ".join(missing)
+    except sqlite3.Error:
+        return False, "El archivo no es una base de datos SQLite válida."
+
+    return True, None
+
+def import_database_file(db_file_path: str) -> tuple[bool, str | None, str | None]:
+    valid, error = _validate_database_file(db_file_path)
+    if not valid:
+        return False, None, error
+
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    tmp_path = ""
+    backup_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=".db",
+            prefix="import_",
+            dir=os.path.dirname(DB_PATH),
+            delete=False,
+        ) as temp_file:
+            tmp_path = temp_file.name
+
+        shutil.copy2(db_file_path, tmp_path)
+
+        with sqlite3.connect(tmp_path) as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.executescript(SCHEMA_SQL)
+            _ensure_user_columns(conn)
+            _set_schema_version(conn)
+            conn.commit()
+
+        if os.path.isfile(DB_PATH):
+            backup_path = create_database_backup(prefix="preimport")
+
+        os.replace(tmp_path, DB_PATH)
+        return True, backup_path, None
+    except (sqlite3.Error, OSError) as exc:
+        return False, backup_path, f"No se pudo importar la base de datos: {exc}"
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 def _ensure_user_columns(conn: sqlite3.Connection) -> None:
     columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
@@ -432,6 +508,10 @@ def has_any_users() -> bool:
 
 def save_submission(payload: dict) -> int:
     created_at = datetime.utcnow().isoformat()
+    return save_submission_with_created_at(payload, created_at)
+
+def save_submission_with_created_at(payload: dict, created_at: str | None = None) -> int:
+    created_at_value = created_at or datetime.utcnow().isoformat()
     data_json = json.dumps(
         payload,
         ensure_ascii=True,
@@ -442,18 +522,23 @@ def save_submission(payload: dict) -> int:
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO submissions (created_at, data_json) VALUES (?, ?)",
-            (created_at, data_json),
+            (created_at_value, data_json),
         )
         conn.commit()
         return cur.lastrowid
 
-def list_submissions(limit: int = 20) -> list[dict]:
+def list_submissions(limit: int | None = 20) -> list[dict]:
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT id, created_at, data_json FROM submissions ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if limit is None or limit <= 0:
+            rows = conn.execute(
+                "SELECT id, created_at, data_json FROM submissions ORDER BY id DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, created_at, data_json FROM submissions ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
 
     results = []
     for row in rows:

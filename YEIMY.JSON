@@ -1,0 +1,135 @@
+{
+  "datos_generales": {
+    "informe_no": null,
+    "contrato_no": "2.28.04-89 de 2026",
+    "fecha_contrato": "2026-01-30",
+    "objeto_contractual": "Prestar servicios de apoyo a la gestión para el manejo y operación de plataformas de comunicación y difusión a cargo del Municipio de Caldono Cauca, en el marco del proyecto 'Fortalecimiento institucional para una gestión pública efectiva y transparente en el Municipio de Caldono'",
+    "entidad_contratante": "Municipio de Caldono Cauca",
+    "nit": "891501723-1",
+    "contratista": "Yeimy Fabian Mendez Mendoza",
+    "supervisor": "Rodrigo Astudillo Gil",
+    "supervisor_cc": null,
+    "cc": "1116782765",
+    "ciudad_expedicion": "Arauca",
+    "plazo_dia": 31,
+    "plazo_mes": 7,
+    "plazo_anio": 2026,
+    "fecha_inicio_contrato": "2026-01-30",
+    "fecha_vencimiento_contrato": "2026-07-31",
+    "valor_inicial": 16200000,
+    "cdp": "133 del 30 de enero de 2026",
+    "rp": "133 del 30 de enero de 2026",
+    "periodo_i_de": null,
+    "periodo_i_a": null,
+    "fecha_expedicion_informe_dia": null,
+    "fecha_expedicion_informe_mes": null,
+    "fecha_expedicion_informe_año": null,
+    "fecha_presentacion_informe": null
+  },
+  "obligaciones": {
+    "obligaciones_directas": [
+      "Diseñar, programar, configurar y mantener el sitio web del municipio de Caldono.",
+      "Administrar el servidor web y garantizar que sea atractivo, funcional, accesible y seguro.",
+      "Mejorar el posicionamiento del sitio en los resultados de búsqueda.",
+      "Apoyar en la elaboración del Plan de transformación digital y plan estratégico PETI, implementando acceso a gobierno abierto y soluciones tecnológicas.",
+      "Desarrollar acciones para mitigar problemas de seguridad cibernética.",
+      "Realizar actividades de soporte técnico en la Administración Municipal.",
+      "Apoyar el proceso de comunicación institucional.",
+      "Las demás que se requieran para la ejecución del objeto contractual."
+    ],
+    "obligaciones_directas_ejecutadas": null,
+    "obligaciones_generales": "Según cláusula segunda del contrato (obligaciones generales del contratista).",
+    "obligaciones_generales_ejecutadas": null
+  },
+  "obligaciones_directas_items": [
+    {
+      "actividad_contrato": "Diseñar, programar, configurar y mantener el sitio web del municipio de Caldono.",
+      "actividad_ejecutada": null,
+      "aporta_evidencias": false,
+      "evidencias": {
+        "images": [],
+        "groups": []
+      }
+    },
+    {
+      "actividad_contrato": "Administrar el servidor web y garantizar que sea atractivo, funcional, accesible y seguro.",
+      "actividad_ejecutada": null,
+      "aporta_evidencias": false,
+      "evidencias": {
+        "images": [],
+        "groups": []
+      }
+    },
+    {
+      "actividad_contrato": "Mejorar el posicionamiento del sitio en los resultados de búsqueda.",
+      "actividad_ejecutada": null,
+      "aporta_evidencias": false,
+      "evidencias": {
+        "images": [],
+        "groups": []
+      }
+    },
+    {
+      "actividad_contrato": "Apoyar en la elaboración del Plan de transformación digital y plan estratégico PETI.",
+      "actividad_ejecutada": null,
+      "aporta_evidencias": false,
+      "evidencias": {
+        "images": [],
+        "groups": []
+      }
+    },
+    {
+      "actividad_contrato": "Desarrollar acciones para mitigar problemas de seguridad cibernética.",
+      "actividad_ejecutada": null,
+      "aporta_evidencias": false,
+      "evidencias": {
+        "images": [],
+        "groups": []
+      }
+    },
+    {
+      "actividad_contrato": "Realizar actividades de soporte técnico en la Administración Municipal.",
+      "actividad_ejecutada": null,
+      "aporta_evidencias": false,
+      "evidencias": {
+        "images": [],
+        "groups": []
+      }
+    },
+    {
+      "actividad_contrato": "Apoyar el proceso de comunicación institucional.",
+      "actividad_ejecutada": null,
+      "aporta_evidencias": false,
+      "evidencias": {
+        "images": [],
+        "groups": []
+      }
+    }
+  ],
+  "seguridad_social": {
+    "aportes_planilla": null,
+    "aportes_mes": null,
+    "fecha_pago_aportes": null,
+    "operador_planilla": null,
+    "aportes_valor_salud": null,
+    "aportes_valor_pension": null,
+    "aportes_valor_riesgos": null,
+    "total_aportes": null
+  },
+  "informacion_financiera": {
+    "valor_contrato": 16200000,
+    "valor_anticipo": 0,
+    "valor_pago_anticipado": 0,
+    "valor_adiciones": 0,
+    "valor_ejecutado": null,
+    "valor_a_cobrar": null,
+    "saldo_pendiente": 16200000,
+    "valor_presente_informe": null,
+    "actas_subtotal": null
+  },
+  "actas_parciales": [],
+  "campos_derivados": {
+    "obligaciones_directas_ejecutadas_tercera": null,
+    "obligaciones_directas_items_tercera": null
+  }
+}

@@ -470,6 +470,12 @@
                   class="money"
               /></label>
               <label
+                >Valor caja compensacion familiar<input
+                  name="aportes_valor_caja_compensacion_familiar"
+                  required
+                  class="money"
+              /></label>
+              <label
                 >Total aportes<input
                   name="total_aportes"
                   readonly
@@ -579,9 +585,36 @@
         <section class="history" aria-live="polite">
           <div class="history-header">
             <h2>Historial</h2>
-            <button type="button" class="secondary" id="refreshHistory">
-              Actualizar
-            </button>
+            <div>
+              <button type="button" class="secondary" id="refreshHistory">
+                Actualizar
+              </button>
+              <button type="button" class="secondary" id="clearFields">
+                Limpiar campos
+              </button>
+              {% if user and user.role == "contratista" %}
+              <button
+                type="button"
+                class="secondary"
+                id="contractorExportHistory"
+              >
+                Exportar mis registros
+              </button>
+              <input
+                type="file"
+                id="contractorImportFile"
+                accept=".json,application/json"
+                hidden
+              />
+              <button
+                type="button"
+                class="secondary"
+                id="contractorImportHistory"
+              >
+                Importar mis registros
+              </button>
+              {% endif %}
+            </div>
           </div>
           <div class="history-list" id="historyList">
             <span class="history-empty">Sin registros aun.</span>
@@ -595,6 +628,14 @@
         <h3 id="modalTitle">Estado</h3>
         <div id="modalBody"></div>
         <div class="modal-actions">
+          <button
+            type="button"
+            class="secondary"
+            id="confirmModalAction"
+            hidden
+          >
+            Confirmar
+          </button>
           <button type="button" class="primary" id="closeModal">Cerrar</button>
         </div>
       </div>
@@ -693,11 +734,7 @@
           <div class="evidence-fields evidence-link-pane">
             <div class="evidence-link-header">
               <span>Enlaces / URL de evidencia</span>
-              <button
-                type="button"
-                class="secondary"
-                id="addEvidenceLinkField"
-              >
+              <button type="button" class="secondary" id="addEvidenceLinkField">
                 Agregar otro campo
               </button>
             </div>
@@ -766,11 +803,24 @@
       const outputDir = document.body.dataset.outputDir || "";
       const panels = document.querySelectorAll(".panel");
       const statusEl = document.getElementById("status");
+      const clearFieldsButton = document.getElementById("clearFields");
       const historyList = document.getElementById("historyList");
       const refreshHistoryButton = document.getElementById("refreshHistory");
+      const contractorExportHistoryButton = document.getElementById(
+        "contractorExportHistory",
+      );
+      const contractorImportHistoryButton = document.getElementById(
+        "contractorImportHistory",
+      );
+      const contractorImportFileInput = document.getElementById(
+        "contractorImportFile",
+      );
+      let contractorHistoryCount = 0;
       const statusModal = document.getElementById("statusModal");
       const modalTitle = document.getElementById("modalTitle");
       const modalBody = document.getElementById("modalBody");
+      const confirmModalActionButton =
+        document.getElementById("confirmModalAction");
       const closeModalButton = document.getElementById("closeModal");
       const evidenceModal = document.getElementById("evidenceModal");
       const evidenceGroups = document.getElementById("evidenceGroups");
@@ -829,6 +879,33 @@
       const openModal = (title, bodyHtml) => {
         modalTitle.textContent = title;
         modalBody.innerHTML = bodyHtml;
+        if (confirmModalActionButton) {
+          confirmModalActionButton.hidden = true;
+          confirmModalActionButton.textContent = "Confirmar";
+        }
+        closeModalButton.textContent = "Cerrar";
+        statusModal.classList.add("is-open");
+        statusModal.setAttribute("aria-hidden", "false");
+      };
+
+      let modalConfirmHandler = null;
+
+      const openConfirmModal = ({
+        title,
+        bodyHtml,
+        confirmText = "Confirmar",
+        cancelText = "Cancelar",
+        onConfirm,
+      }) => {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = bodyHtml;
+        closeModalButton.textContent = cancelText;
+        modalConfirmHandler =
+          typeof onConfirm === "function" ? onConfirm : null;
+        if (confirmModalActionButton) {
+          confirmModalActionButton.textContent = confirmText;
+          confirmModalActionButton.hidden = false;
+        }
         statusModal.classList.add("is-open");
         statusModal.setAttribute("aria-hidden", "false");
       };
@@ -1263,6 +1340,12 @@
       const closeModal = () => {
         statusModal.classList.remove("is-open");
         statusModal.setAttribute("aria-hidden", "true");
+        if (confirmModalActionButton) {
+          confirmModalActionButton.hidden = true;
+          confirmModalActionButton.textContent = "Confirmar";
+        }
+        closeModalButton.textContent = "Cerrar";
+        modalConfirmHandler = null;
         if (isEjecutadasModal && activeEjecutadasField) {
           suppressEjecutadasModal = true;
           const fieldToFocus = activeEjecutadasField;
@@ -1338,7 +1421,10 @@
       }
 
       if (addEvidenceLinkFieldButton) {
-        addEvidenceLinkFieldButton.addEventListener("click", addEvidenceLinkField);
+        addEvidenceLinkFieldButton.addEventListener(
+          "click",
+          addEvidenceLinkField,
+        );
       }
 
       if (addPlanillaPdfButton && aportesPlanillaPdfFileInput) {
@@ -1512,6 +1598,15 @@
       };
 
       closeModalButton.addEventListener("click", closeModal);
+      if (confirmModalActionButton) {
+        confirmModalActionButton.addEventListener("click", () => {
+          const handler = modalConfirmHandler;
+          closeModal();
+          if (typeof handler === "function") {
+            handler();
+          }
+        });
+      }
       statusModal.addEventListener("click", (event) => {
         if (event.target === statusModal) {
           closeModal();
@@ -1643,13 +1738,18 @@
           if (!json.ok) {
             throw new Error("history_api_error");
           }
-          renderHistory(json.items || []);
+          const items = Array.isArray(json.items) ? json.items : [];
+          contractorHistoryCount = items.length;
+          updateContractorExportLabel(contractorHistoryCount);
+          renderHistory(items);
         } catch (error) {
           historyList.innerHTML = "";
           const empty = document.createElement("span");
           empty.className = "history-empty";
           empty.textContent = "No se pudo cargar el historial.";
           historyList.appendChild(empty);
+          contractorHistoryCount = 0;
+          updateContractorExportLabel(contractorHistoryCount);
         }
       };
 
@@ -1662,10 +1762,39 @@
         return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
       };
 
+      const getDownloadFilename = (response, fallbackName) => {
+        const header = response.headers.get("content-disposition") || "";
+        const match = header.match(
+          /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i,
+        );
+        const encoded = match ? match[1] || match[2] : "";
+        if (!encoded) return fallbackName;
+        try {
+          return decodeURIComponent(encoded);
+        } catch (error) {
+          return encoded;
+        }
+      };
+
+      const updateContractorExportLabel = (count) => {
+        if (!contractorExportHistoryButton) {
+          return;
+        }
+        const safeCount = Number.isFinite(count) && count > 0 ? count : 0;
+        contractorExportHistoryButton.textContent =
+          safeCount > 0
+            ? `Exportar mis registros (${safeCount})`
+            : "Exportar mis registros (0)";
+      };
+
       const setFieldValue = (name, value) => {
         const field = document.querySelector(`[name='${name}']`);
         if (!field) return;
         field.value = value ?? "";
+        if (field.classList.contains("money")) {
+          const rawValue = String(field.value || "").trim();
+          field.value = rawValue ? formatCurrency(parseMoney(rawValue)) : "";
+        }
         updateFieldState(field);
       };
 
@@ -1707,6 +1836,7 @@
         "aportes_valor_salud",
         "aportes_valor_pension",
         "aportes_valor_riesgos",
+        "aportes_valor_caja_compensacion_familiar",
       ].map((name) => document.querySelector(`input[name='${name}']`));
 
       const parseMoney = (value) => {
@@ -1734,6 +1864,8 @@
         }).format(numberValue);
       };
 
+      const MONEY_PLACEHOLDER = "$ 0";
+
       const updateTotal = () => {
         const hasValue = aporteFields.some((field) => field.value.trim());
         const sum = aporteFields.reduce(
@@ -1746,8 +1878,14 @@
       aporteFields.forEach((field) => {
         field.addEventListener("input", updateTotal);
         field.addEventListener("blur", () => {
-          const numberValue = parseMoney(field.value);
-          field.value = numberValue ? formatCurrency(numberValue) : "";
+          const rawValue = String(field.value || "").trim();
+          if (!rawValue) {
+            field.value = "";
+            updateTotal();
+            return;
+          }
+          const numberValue = parseMoney(rawValue);
+          field.value = formatCurrency(numberValue);
           updateTotal();
         });
       });
@@ -1829,6 +1967,9 @@
       };
 
       const bindMoneyField = (field) => {
+        if (!field.placeholder) {
+          field.placeholder = MONEY_PLACEHOLDER;
+        }
         field.addEventListener("blur", () => {
           const numberValue = parseMoney(field.value);
           if (!field.value.trim()) {
@@ -1837,6 +1978,14 @@
             return;
           }
           field.value = formatCurrency(numberValue);
+          updateFieldState(field);
+        });
+      };
+
+      const normalizeMoneyFields = (container = document) => {
+        container.querySelectorAll(".money").forEach((field) => {
+          const rawValue = String(field.value || "").trim();
+          field.value = rawValue ? formatCurrency(parseMoney(rawValue)) : "";
           updateFieldState(field);
         });
       };
@@ -2412,6 +2561,7 @@
       Array.from(document.querySelectorAll(".money")).forEach((field) => {
         bindMoneyField(field);
       });
+      normalizeMoneyFields();
 
       const updateRemoveButtons = (container) => {
         const rows = container.querySelectorAll(".activity-row");
@@ -2553,6 +2703,9 @@
         valor.value = values.valor || "";
         valor.addEventListener("input", updateActasSubtotal);
         bindMoneyField(valor);
+        if (String(valor.value || "").trim()) {
+          valor.value = formatCurrency(parseMoney(valor.value));
+        }
 
         const removeButton = document.createElement("button");
         removeButton.type = "button";
@@ -2868,9 +3021,49 @@
         syncFinancierosDesdeSubtotal();
         syncActaPeriodoDesdeInformado("latest-auto");
         normalizeFormFieldsToUppercase();
+        normalizeMoneyFields(form);
         updateSubmitState();
         scheduleAutosave();
       };
+
+      const clearFormFields = () => {
+        form.reset();
+        evidenceByRow.clear();
+        aportesPlanillaPdf = null;
+        renderPlanillaPdfState();
+        setActivityRows(directasRows, "obligaciones_directas", true, []);
+        setActaRows([]);
+        updateDias(plazoDia, plazoMes, plazoAnio);
+        updateDias(fechaExpDia, fechaExpMes, fechaExpAnio);
+        syncSupervisorMeta(false);
+        updateFechaVencimientoDesdePlazo();
+        updateFechaPresentacionDesdeExpedicion();
+        updateTotal();
+        updateActasSubtotal();
+        syncValorContratoDesdeInicial();
+        syncFinancierosDesdeSubtotal();
+        syncActaPeriodoDesdeInformado("empty-only");
+        normalizeFormFieldsToUppercase();
+        normalizeMoneyFields(form);
+        validationState.showMissing = false;
+        statusEl.textContent = "";
+        activateTab("t1");
+        updateSubmitState();
+        clearDraft();
+      };
+
+      if (clearFieldsButton) {
+        clearFieldsButton.addEventListener("click", () => {
+          openConfirmModal({
+            title: "Confirmar limpieza",
+            bodyHtml:
+              "<p>Se limpiarán todos los campos del formulario. ¿Deseas continuar?</p>",
+            confirmText: "Limpiar campos",
+            cancelText: "Cancelar",
+            onConfirm: clearFormFields,
+          });
+        });
+      }
 
       const draftPayload = loadDraft();
       if (draftPayload && draftPayload.data) {
@@ -3157,6 +3350,80 @@
       });
 
       refreshHistoryButton.addEventListener("click", loadHistory);
+
+      if (contractorExportHistoryButton) {
+        updateContractorExportLabel(contractorHistoryCount);
+        contractorExportHistoryButton.addEventListener("click", async () => {
+          const confirmMessage = `Se exportarán ${contractorHistoryCount} registro(s) propios. ¿Deseas continuar?`;
+          if (!window.confirm(confirmMessage)) {
+            return;
+          }
+          contractorExportHistoryButton.disabled = true;
+          try {
+            const response = await fetch("/contractor/history/export");
+            if (!response.ok) {
+              throw new Error("export_failed");
+            }
+            const blob = await response.blob();
+            const fileName = getDownloadFilename(
+              response,
+              "mis_registros.json",
+            );
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            statusEl.textContent = "Respaldo exportado correctamente.";
+          } catch (error) {
+            statusEl.textContent = "No se pudo exportar el respaldo.";
+          } finally {
+            contractorExportHistoryButton.disabled = false;
+          }
+        });
+      }
+
+      if (contractorImportHistoryButton && contractorImportFileInput) {
+        contractorImportHistoryButton.addEventListener("click", () => {
+          contractorImportFileInput.click();
+        });
+
+        contractorImportFileInput.addEventListener("change", async () => {
+          const file = contractorImportFileInput.files
+            ? contractorImportFileInput.files[0]
+            : null;
+          if (!file) {
+            return;
+          }
+          contractorImportHistoryButton.disabled = true;
+          try {
+            const formData = new FormData();
+            formData.append("contractor_backup_file", file);
+            const response = await fetch("/contractor/history/import", {
+              method: "POST",
+              body: formData,
+            });
+            const json = await response.json();
+            if (!response.ok || !json.ok) {
+              throw new Error(json.message || "import_failed");
+            }
+            statusEl.textContent = json.message || "Respaldo importado.";
+            loadHistory();
+          } catch (error) {
+            statusEl.textContent =
+              error && error.message
+                ? String(error.message)
+                : "No se pudo importar el respaldo.";
+          } finally {
+            contractorImportHistoryButton.disabled = false;
+            contractorImportFileInput.value = "";
+          }
+        });
+      }
+
       loadHistory();
     </script>
     <script>

@@ -40,6 +40,7 @@ EXPECTED = {
     "aportes_valor_salud",
     "aportes_valor_pension",
     "aportes_valor_riesgos",
+    "aportes_valor_caja_compensacion_familiar",
     "total_aportes",
     "valor_contrato",
     "valor_anticipo",

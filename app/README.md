@@ -22,6 +22,9 @@ Los archivos se guardan en `app/output/` con prefijo del consecutivo (`00001_...
   - Ejecutable `.exe`: `%LOCALAPPDATA%\\GeneradorInformes\\data\\app.db`
 - Panel de supervisión (listar, revisar, aprobar/rechazar informes).
 - Panel de administración para gestión de roles y usuarios.
+- Exportación e importación de base de datos desde el panel de administración.
+- Respaldo automático previo a cada importación en `%LOCALAPPDATA%\\GeneradorInformes\\backups`.
+- Respaldo personal para `contratista` (exportar/importar solo sus propios registros en JSON).
 
 ## Requisitos
 
@@ -82,6 +85,10 @@ Al iniciar por primera vez, se crean base de datos, roles por defecto y usuario 
 - `GET|POST /login`
 - `GET /logout`
 - `GET /admin` panel de administración (solo `super_admin`)
+- `GET /admin/database/export` exporta la base SQLite actual
+- `POST /admin/database/import` importa una SQLite y reemplaza la actual (con backup previo)
+- `GET /contractor/history/export` exporta respaldo JSON del historial propio del contratista
+- `POST /contractor/history/import` importa respaldo JSON del historial propio del contratista
 
 ### Generación e historial
 
@@ -167,6 +174,7 @@ Estructura de `evidencias`:
 - `aportes_valor_salud`
 - `aportes_valor_pension`
 - `aportes_valor_riesgos`
+- `aportes_valor_caja_compensacion_familiar`
 - `total_aportes` (si falta, la app intenta calcularlo automáticamente)
 
 ### Información financiera
@@ -217,6 +225,29 @@ py -3.11 -m venv .venv_clean311
 .\.venv_clean311\Scripts\python.exe -m pip install pyinstaller
 .\.venv_clean311\Scripts\python.exe -m PyInstaller --clean --noconfirm --log-level=INFO --onefile --add-data "app\templates;templates" --add-data "app\static;static" --add-data "app\docx_templates;docx_templates" --add-data "app\data;data" app\app.py
 ```
+
+## Respaldos y actualización segura
+
+### Flujo recomendado antes de actualizar
+
+1. En la versión actual, entrar como `super_admin` al panel **Base de datos**.
+2. Usar **Exportar base de datos** y guardar el archivo `.db` en una ubicación segura.
+3. Instalar o abrir la nueva versión del `.exe`.
+4. En la nueva versión, usar **Importar base de datos** con el archivo exportado.
+
+### Buenas prácticas técnicas
+
+- Mantener la base de datos fuera del ejecutable (ya se usa `%LOCALAPPDATA%\\GeneradorInformes\\data\\app.db`).
+- Versionar esquema con `PRAGMA user_version` y aplicar migraciones incrementales en `init_db()`.
+- Nunca eliminar columnas/tablas en una actualización sin estrategia de migración reversible.
+- Crear backup automático antes de operaciones críticas (ya implementado para import).
+- Para cambios grandes de esquema, usar migraciones idempotentes y pruebas con copia real de datos.
+
+### Notas de migraciones
+
+- La app ejecuta `SCHEMA_SQL` y normalizaciones de columnas en cada arranque.
+- Si agregas una nueva migración, incrementa versión y aplica `ALTER TABLE`/transformaciones de forma segura.
+- Evita resets de datos por código de inicialización; el seed debe usarse solo para primera ejecución.
 
 Salida esperada: `dist/app.exe`.
 
@@ -308,6 +339,6 @@ Notas:
 
 ## Notas operativas
 
-- La app autocalcula `total_aportes` cuando no se envía y existen valores de salud/pensión/riesgos.
+- La app autocalcula `total_aportes` cuando no se envía y existen valores de salud/pensión/riesgos/caja de compensación familiar.
 - En informes de supervisión se genera versión en tercera persona para actividades ejecutadas.
 - Si `FLASK_DEBUG` no está activo, la app intenta abrir el navegador automáticamente al arrancar.
